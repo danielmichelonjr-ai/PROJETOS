@@ -6,7 +6,10 @@ from openpyxl.formatting.rule import CellIsRule, ColorScaleRule
 from openpyxl.chart import BarChart, Reference
 from openpyxl.chart.label import DataLabelList
 
-SIM, OUT = sys.argv[1], sys.argv[2]
+SIM, OUT, TAB = sys.argv[1:4]
+VER = sys.argv[4] if len(sys.argv) > 4 else 'V1'
+SIM_V1 = sys.argv[5] if len(sys.argv) > 5 else None
+SIM_CEN = sys.argv[6] if len(sys.argv) > 6 else None
 b = pd.read_excel(SIM, sheet_name='Base Simulada')
 b = b.rename(columns={'CUSTO ATUAL (COTAÇÃO TRANSP.)': 'ATUAL', 'TRANSUA C/ ICMS 7%': 'TRANSUA'})
 GV = ['Serra', 'Vila Velha', 'Vitória', 'Cariacica', 'Viana']
@@ -108,17 +111,43 @@ def legend(ws, row):
         c.alignment = Alignment(horizontal='center')
 
 
+def brl(v):
+    return f'R$ {v:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+def pct(v, sign=True):
+    return (f'{v:+.1%}' if sign else f'{v:.0%}').replace('.', ',')
+
+
+def load(path):
+    x = pd.read_excel(path, sheet_name='Base Simulada').rename(columns={'CUSTO ATUAL (COTAÇÃO TRANSP.)': 'ATUAL', 'TRANSUA C/ ICMS 7%': 'TRANSUA'})
+    x['REGIAO'] = x.CIDADE.isin(GV).map({True: 'Grande Vitória', False: 'Interior'})
+    return x
+
+
+def dif(x):
+    return x.TRANSUA.sum() / x.ATUAL.sum() - 1
+
+
+def win(x):
+    return (x.TRANSUA < x.ATUAL).mean()
+
+
+tb = pd.read_excel(TAB, header=None).iloc[4:, 2:22].astype(float)
+tb.columns = ['CEPI', 'CEPF', 'PRAZO', 'MINIMO', 10, 20, 40, 60, 70, 100, 150, 200, 'EXCED', 'ADVALOR', 'SECCAT', 'GRIS', 'TAS', 'PEDAGIO', 'PED_FRAC', 'ENTREGA']
+MIN_CAP, MIN_INT = tb.MINIMO.min(), tb.MINIMO.max()
+SECCAT = tb.SECCAT.max()
+gua = tb[tb.CEPI == 29200000].iloc[0]
+
 # ---------------- Aba 1: RESUMO ----------------
-ws = sheet('Resumo', 'TRANSUA  |  Simulação de Frete – Espírito Santo',
+ws = sheet('Resumo', f'TRANSUA  |  Simulação de Frete – Espírito Santo  |  Proposta {VER}',
            'Pedidos com destino ES pagos de jul a set: preço atual praticado x tabela TRANSUA proposta (valores com ICMS)',
            [26, 16, 16, 16, 16, 16, 16])
-# KPI cards (row 4-6)
 kpis = [('Pedidos simulados', len(b), '#,##0'),
         ('Custo atual (mercado)', b.ATUAL.sum(), R0),
-        ('Custo com TRANSUA', b.TRANSUA.sum(), R0),
-        ('Diferença', b.TRANSUA.sum() / b.ATUAL.sum() - 1, P),
-        ('Pedidos em que a TRANSUA é mais barata', (b.TRANSUA < b.ATUAL).mean(), P0)]
-cols = [2, 3, 5, 6, 7]
+        (f'Custo com TRANSUA ({VER})', b.TRANSUA.sum(), R0),
+        ('Diferença', dif(b), P),
+        ('Pedidos em que a TRANSUA é mais barata', win(b), P0)]
 spans = [(2, 2), (3, 4), (5, 6), (7, 7), (8, 8)]
 for (lab, v, fmt), (c1, c2) in zip(kpis, spans):
     for r in (4, 5):
@@ -128,7 +157,7 @@ for (lab, v, fmt), (c1, c2) in zip(kpis, spans):
     a.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     v_ = ws.cell(5, c1, v)
     v_.number_format = fmt
-    v_.font = Font(name=F, size=20, bold=True, color=RED_T if lab == 'Diferença' else NAVY)
+    v_.font = Font(name=F, size=20, bold=True, color=(RED_T if v > 0 else GREEN_T) if lab == 'Diferença' else NAVY)
     v_.alignment = Alignment(horizontal='center', vertical='center')
     for r in (4, 5):
         for c in range(c1, c2 + 1):
@@ -136,7 +165,7 @@ for (lab, v, fmt), (c1, c2) in zip(kpis, spans):
 ws.row_dimensions[4].height = 28
 ws.row_dimensions[5].height = 36
 
-section(ws, 7, 'Resultado por região', 7)
+section(ws, 7, f'Resultado por região – proposta {VER}', 7)
 header(ws, 8, ['Região', 'Pedidos', 'Preço médio atual', 'Preço médio TRANSUA', 'Diferença', 'TRANSUA mais barata em', 'Status'])
 r = 9
 for reg in ['Grande Vitória', 'Interior']:
@@ -146,7 +175,7 @@ for reg in ['Grande Vitória', 'Interior']:
     cellw(ws, r, 4, round(g.ATUAL.mean(), 2), R)
     cellw(ws, r, 5, round(g.TRANSUA.mean(), 2), R)
     cellw(ws, r, 6, f'=E{r}/D{r}-1', P, bold=True)
-    cellw(ws, r, 7, (g.TRANSUA < g.ATUAL).mean(), P0)
+    cellw(ws, r, 7, win(g), P0)
     cellw(ws, r, 8, STATUS.format(d=f'F{r}'))
     r += 1
 cellw(ws, r, 2, 'Total ES', align='left', bold=True, fill=GREY)
@@ -154,34 +183,81 @@ cellw(ws, r, 3, '=SUM(C9:C10)', '#,##0', bold=True, fill=GREY)
 cellw(ws, r, 4, '=SUMPRODUCT(C9:C10,D9:D10)/C11', R, bold=True, fill=GREY)
 cellw(ws, r, 5, '=SUMPRODUCT(C9:C10,E9:E10)/C11', R, bold=True, fill=GREY)
 cellw(ws, r, 6, f'=E{r}/D{r}-1', P, bold=True, fill=GREY)
-cellw(ws, r, 7, (b.TRANSUA < b.ATUAL).mean(), P0, bold=True, fill=GREY)
+cellw(ws, r, 7, win(b), P0, bold=True, fill=GREY)
 cellw(ws, r, 8, STATUS.format(d=f'F{r}'), bold=True)
 ws.column_dimensions['B'].width = 50
 diff_rules(ws, 'F9:F11'); status_rules(ws, 'H9:H11')
 
-section(ws, 13, 'Onde a TRANSUA já é competitiva', 7)
-gv = b[b.REGIAO == 'Grande Vitória']
-m = gv[(gv['PESO ITENS'] > 40) & (gv['PESO ITENS'] <= 90)]
-pos = [f'Grande Vitória, pedidos de 40 a 90 kg: {m.TRANSUA.sum()/m.ATUAL.sum()-1:+.1%} vs. mercado; mais barata em {(m.TRANSUA<m.ATUAL).mean():.0%} dos pedidos.',
-       'Cariacica e Viana: preço igual ou abaixo do mercado no total.',
-       'Serra, Vila Velha e Vitória: apenas +5% a +7% acima do mercado — ajuste pequeno torna a tabela vencedora.']
-neg = ['Interior: +32% acima do mercado, mais barata em só 2% dos pedidos. O frete mínimo de R$ 160 (sem ICMS) é a principal causa: 48% dos pedidos do interior caem no mínimo.',
-       'Guarapari (maior cidade fora da Grande Vitória): está na faixa de CEP do interior (mínimo R$ 160, 18 d.u.); +35% vs. mercado e não vence nenhum pedido.',
-       'Pedidos leves (0–20 kg): +44%. O mínimo de R$ 95 (capital) fica acima do preço praticado pelo mercado (~R$ 72 na Grande Vitória).',
-       'Pedidos pesados (acima de 90 kg): +13% a +38%. As faixas de 100, 150 e 200 kg estão caras.',
-       'Taxa SECCAT de R$ 220 por pedido em cidades pequenas do interior (37 pedidos no período) inviabiliza a cotação nesses CEPs.']
-asks = ['Reduzir o frete mínimo do interior de R$ 160 para ~R$ 125 (sem ICMS).',
-        'Enquadrar Guarapari (CEPs 29200-000 a 29229-999) na tabela da capital: mínimo R$ 95 e prazo 12 d.u.',
-        'Reduzir o mínimo da capital e a faixa de até 20 kg em ~20%.',
-        'Reduzir as faixas de 100, 150 e 200 kg em ~15% a 25% (ver aba "Faixas de Peso").',
-        'Rever ou retirar a taxa SECCAT de R$ 220.']
-r = 14
+r = 13
+if SIM_V1:
+    v1 = load(SIM_V1)
+    cen = load(SIM_CEN) if SIM_CEN else None
+    section(ws, r, 'Evolução da proposta: diferença vs. mercado (negativo = TRANSUA mais barata)', 7); r += 1
+    header(ws, r, ['Região', 'Proposta V1', f'Proposta {VER}', 'Melhora (p.p.)', 'Mais barata em (V1)', f'Mais barata em ({VER})',
+                   f'{VER} + ajustes 1 a 3 abaixo' if cen is not None else '']); r += 1
+    e0 = r
+    for reg in ['Total ES', 'Grande Vitória', 'Interior']:
+        f1 = v1 if reg == 'Total ES' else v1[v1.REGIAO == reg]
+        f2 = b if reg == 'Total ES' else b[b.REGIAO == reg]
+        cellw(ws, r, 2, reg, align='left', bold=True)
+        cellw(ws, r, 3, round(dif(f1), 4), P)
+        cellw(ws, r, 4, round(dif(f2), 4), P, bold=True)
+        cellw(ws, r, 5, f'=(C{r}-D{r})*100', '0.0" p.p."')
+        cellw(ws, r, 6, round(win(f1), 3), P0)
+        cellw(ws, r, 7, round(win(f2), 3), P0, bold=True)
+        if cen is not None:
+            f3 = cen if reg == 'Total ES' else cen[cen.REGIAO == reg]
+            cellw(ws, r, 8, round(dif(f3), 4), P, bold=True, fill='EBF6EE')
+        r += 1
+    diff_rules(ws, f'C{e0}:D{r-1}'); diff_rules(ws, f'H{e0}:H{r-1}')
+    r += 1
+
+gv = b[b.REGIAO == 'Grande Vitória']; it = b[b.REGIAO == 'Interior']
+cid = b.groupby('CIDADE').apply(lambda g: pd.Series({'n': len(g), 'd': dif(g)}), include_groups=False).loc[top]
+fxd = t20.groupby('FX').apply(dif, include_groups=False)
+comp_fx = [f for f in FX if fxd[f] <= 0.01]
+int_ok = cid[(cid.d <= 0.08) & ~cid.index.isin(GV)].index.tolist()
+int_bad = cid[(cid.d > 0.15) & ~cid.index.isin(GV)].sort_values('d', ascending=False)
+leve_it = it[it['PESO ITENS'] <= 40]
+gv20 = gv[gv['PESO ITENS'] <= 20]
+sec = b[b.SECCAT > 0]
+gu = b[b.CIDADE == 'Guarapari']
+pesado = [f for f in FX[5:] if fxd[f] > 0.05]
+
+pos = [f'Grande Vitória: {pct(dif(gv))} vs. mercado; TRANSUA mais barata em {pct(win(gv), False)} dos pedidos. ' +
+       ', '.join(f'{c} {pct(cid.d[c])}' for c in GV) + '.',
+       f'Faixas de {comp_fx[0].split(" - ")[0]} a {comp_fx[-1].split(" - ")[-1]} kg competitivas no top 20 (' +
+       ', '.join(f'{f} kg {pct(fxd[f])}' for f in comp_fx) + ').']
+if int_ok:
+    pos.append('Interior já próximo do mercado (até +8%): ' + ', '.join(f'{c} {pct(cid.d[c])}' for c in int_ok) + '.')
+neg = [f'Interior: {pct(dif(it))} vs. mercado, mais barata em só {pct(win(it), False)} dos pedidos. O frete mínimo de {brl(MIN_INT)} (sem ICMS) '
+       f'não mudou: {pct(leve_it.MINIMO_APLICADO.mean(), False)} dos pedidos de até 40 kg do interior caem no mínimo '
+       f'(TRANSUA {brl(leve_it.TRANSUA.mean())} x mercado {brl(leve_it.ATUAL.mean())}).',
+       f'Guarapari: continua na faixa de CEP do interior (mínimo {brl(gua.MINIMO)}, {gua.PRAZO:.0f} d.u.); {pct(dif(gu))} vs. mercado.',
+       'Cidades do interior mais distantes do mercado: ' + ', '.join(f'{c} {pct(v)}' for c, v in int_bad.d.items()) + '.',
+       f'Pedidos leves (0–20 kg): {pct(fxd["0 - 20"])}. O mínimo da capital ({brl(MIN_CAP)}) fica acima do mercado na Grande Vitória '
+       f'(TRANSUA {brl(gv20.TRANSUA.mean())} x mercado {brl(gv20.ATUAL.mean())}).']
+if pesado:
+    neg.append('Pedidos pesados: ' + ', '.join(f'{f} kg {pct(fxd[f])}' for f in pesado) + '.')
+if len(sec):
+    neg.append(f'Taxa SECCAT de {brl(SECCAT)} mantida: {len(sec)} pedidos no período, custo médio TRANSUA {brl(sec.TRANSUA.mean())} x mercado {brl(sec.ATUAL.mean())}.')
+asks = [f'Reduzir o frete mínimo do interior de {brl(MIN_INT)} para ~R$ 125,00 (sem ICMS).',
+        f'Enquadrar Guarapari (CEPs 29200-000 a 29229-999) na tabela da capital: mínimo {brl(MIN_CAP)} e prazo 12 d.u.',
+        f'Retirar a taxa SECCAT de {brl(SECCAT)}.',
+        f'Reduzir o mínimo da capital de {brl(MIN_CAP)} para ~R$ 75,00 (sem ICMS) para os pedidos de até 20 kg.']
+if pesado:
+    asks.append('Reduzir a faixa de 200 kg e o excedente por kg em ~10% a 15% (ver aba "Faixas de Peso").')
+if SIM_V1 and cen is not None:
+    asks.append(f'Com os ajustes 1 a 3, a proposta {VER} ficaria {pct(dif(cen))} vs. mercado no ES (interior {pct(dif(cen[cen.REGIAO == "Interior"]))}), '
+                f'mais barata em {pct(win(cen), False)} dos pedidos.')
+
+section(ws, r, 'Onde a TRANSUA já é competitiva', 7); r += 1
 for t in pos:
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
     c = ws.cell(r, 2, '✔  ' + t); c.font = Font(name=F, size=10, color=GREEN_T); c.alignment = Alignment(wrap_text=True, vertical='center', indent=1)
-    c.fill = PatternFill('solid', fgColor='EBF6EE'); r += 1
+    c.fill = PatternFill('solid', fgColor='EBF6EE'); ws.row_dimensions[r].height = 30; r += 1
 r += 1
-section(ws, r, 'Onde a TRANSUA precisa melhorar', 7); r += 1
+section(ws, r, 'Onde a TRANSUA ainda precisa melhorar', 7); r += 1
 for t in neg:
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
     c = ws.cell(r, 2, '✖  ' + t); c.font = Font(name=F, size=10, color=RED_T); c.alignment = Alignment(wrap_text=True, vertical='center', indent=1)
@@ -190,8 +266,11 @@ r += 1
 section(ws, r, 'Nossa proposta de ajuste', 7); r += 1
 for i, t in enumerate(asks, 1):
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
-    c = ws.cell(r, 2, f'{i}.  {t}'); c.font = Font(name=F, size=10, bold=True, color=NAVY); c.alignment = Alignment(wrap_text=True, vertical='center', indent=1)
-    c.fill = PatternFill('solid', fgColor=LIGHT); ws.row_dimensions[r].height = 20; r += 1
+    last = SIM_V1 and SIM_CEN and i == len(asks)
+    c = ws.cell(r, 2, ('➜  ' if last else f'{i}.  ') + t)
+    c.font = Font(name=F, size=10, bold=True, color=GREEN_T if last else NAVY); c.alignment = Alignment(wrap_text=True, vertical='center', indent=1)
+    c.fill = PatternFill('solid', fgColor='EBF6EE' if last else LIGHT); ws.row_dimensions[r].height = 22; r += 1
+
 
 # ---------------- Aba 2: CIDADES ----------------
 ws = sheet('Cidades', 'Top 20 cidades do ES  |  Preço médio por pedido',
@@ -297,8 +376,9 @@ lines = [
     ('Preço atual (mercado)', 'Custo de frete cotado pela transportadora que efetivamente atendeu cada pedido, com ICMS.'),
     ('Preço TRANSUA', 'Tabela proposta (formato Intelipost) aplicada pedido a pedido:'),
     ('', '•  Frete-peso pela faixa (até 10/20/40/60/70/100/150/200 kg; acima de 200 kg = faixa de 200 kg + excedente por kg).'),
-    ('', '•  + Ad valorem 0,3% e GRIS 0,2% sobre a nota fiscal, TAS R$ 4,00, pedágio R$ 3,80 a cada 100 kg, entrega R$ 9,50 e SECCAT (R$ 220 nas faixas de CEP indicadas).'),
-    ('', '•  Frete mínimo: R$ 95 (Grande Vitória, CEP 29000-000 a 29184-999) e R$ 160 (demais CEPs), aplicado sobre o total.'),
+    ('', f'•  + Ad valorem {f"{tb.ADVALOR.iat[0]*100:.3f}%".replace(".", ",")} e GRIS {tb.GRIS.iat[0]*100:.1f}% sobre a nota fiscal, TAS {brl(tb.TAS.iat[0])}, pedágio {brl(tb.PEDAGIO.iat[0])} a cada {tb.PED_FRAC.iat[0]:.0f} kg, entrega {brl(tb.ENTREGA.iat[0])} e SECCAT ({brl(SECCAT)} nas faixas de CEP indicadas).'.replace('0.2%', '0,2%')),
+    ('', f'•  Frete mínimo: {brl(MIN_CAP)} (Grande Vitória, CEP 29000-000 a 29184-999) e {brl(MIN_INT)} (demais CEPs), aplicado sobre o total.'),
+    ('Proposta', f'Tabela simulada: proposta {VER} da TRANSUA' + (' (comparação com a proposta V1 na aba Resumo).' if SIM_V1 else '.')),
     ('ICMS', 'A tabela informa ICMS não incluso; aplicado ICMS interestadual de 7% (origem Sudeste → ES) por dentro: total ÷ 0,93.'),
     ('Peso', 'Peso real dos itens (a base não tem dimensões, portanto a cubagem de 300 kg/m³ não foi aplicada).'),
     ('Confidencialidade', 'Preços de mercado apresentados apenas como médias, sem identificação das transportadoras.'),

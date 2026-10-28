@@ -91,11 +91,12 @@ base = es[cols].rename(columns={'ATUAL': 'CUSTO ATUAL (COTAÇÃO TRANSP.)', 'TRA
 
 with pd.ExcelWriter(OUT, engine='openpyxl') as w:
     prem = pd.DataFrame({'Premissas da simulação': [
+        f'Tabela simulada: {TAB.split("/")[-1]}',
         'Base: pedidos com destino ES, pagos de 01/07 a 30/09 (todos os status).',
         'Custo atual = coluna "COTAÇÃO TRANSPORTADOR" (custo cotado da transportadora usada).',
         'TRANSUA = tabela Intelipost: frete-peso pela faixa (até 10/20/40/60/70/100/150/200 kg; acima de 200 kg = valor 200 kg + excedente/kg)',
-        '  + Ad valorem 0,3% NF + GRIS 0,2% NF + TAS R$4 + Pedágio R$3,80 a cada 100 kg (fração) + Entrega R$9,50 + SECCAT (R$220 em algumas faixas de CEP).',
-        'Frete mínimo da tabela (R$95 capital/Grande Vitória, R$160 interior) aplicado sobre o total.',
+        f"  + Ad valorem {tab.ADVALOR.iat[0]:.3%} NF + GRIS {tab.GRIS.iat[0]:.1%} NF + TAS R${tab.TAS.iat[0]:.2f} + Pedágio R${tab.PEDAGIO.iat[0]:.2f} a cada {tab.PED_FRAC.iat[0]:.0f} kg (fração) + Entrega R${tab.ENTREGA.iat[0]:.2f} + SECCAT (R${tab.SECCAT.max():.0f} em algumas faixas de CEP).",
+        f"Frete mínimo da tabela (R${tab.MINIMO.min():.0f} capital/Grande Vitória, R${tab.MINIMO.max():.0f} interior) aplicado sobre o total.",
         'Tabela informa ICMS NÃO incluso: valor bruto com ICMS interestadual de 7% (origem Sul/Sudeste -> ES): total / (1 - 0,07).',
         'Peso usado = PESO ITENS (sem dimensões na base, cubagem 300 kg/m³ não pôde ser aplicada).',
         f'Pedidos ES: {len(es)} | sem faixa de CEP na tabela: {len(sem_tab)}',
