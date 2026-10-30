@@ -32,7 +32,7 @@ def summ(g):
     return pd.Series(r)
 def top(df,n=20):
     out=[]
-    for uf in ['MT','MS','GO','DF','MG']:
+    for uf in ['MT','MS','GO','DF','MG','RO']:
         x=df[df.UF==uf]
         cities=x.CIDADE.value_counts().head(n).index
         for rk,cty in enumerate(cities,1):

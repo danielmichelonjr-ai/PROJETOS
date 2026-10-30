@@ -7,7 +7,7 @@ OUT=sys.argv[1]
 d.loc[d.CIDADE.eq('')|d.CIDADE.isna(),'CIDADE']='(cidade não informada)'
 A=load_table('data/5efb1329-TABELA_ATUAL_PETRYMAR_-_INTELIPOST.xlsx')
 N=load_table('data/f9d33a13-TABELA_MULTIMOVEIS_REAJUSTADA_OUT2026_-_PADR_O_INTELIPOST.xlsx')
-UFS=['MT','MS','GO','DF','MG']
+UFS=['MT','MS','GO','DF','MG','RO']
 # ---------- reajuste tabela
 m=A.merge(N,on=['CEPI','CEPF'],how='outer',suffixes=('_ATUAL','_NOVA'),indicator=True)
 m['UF']=m.UF_NOVA.fillna(m.UF_ATUAL); m['CIDADE']=m.CIDADE_NOVA.fillna(m.CIDADE_ATUAL)

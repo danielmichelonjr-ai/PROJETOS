@@ -6,7 +6,7 @@ df=pd.read_pickle('orders.pkl')
 df['UF']=df['UF / CIDADE'].str.extract(r'\((\w\w)\)$')
 df['CIDADE']=df['UF / CIDADE'].str.replace(r'\s*-\s*\(\w\w\)$','',regex=True).str.strip()
 df['ORIG']=df['ORIGEM COTAÇÃO '].str.strip()
-d=df[df.UF.isin(['MT','MS','GO','DF','MG'])&df.ORIG.isin(['MATRIZ','FILIAL SP','FILIAL MG'])].copy()
+d=df[df.UF.isin(['MT','MS','GO','DF','MG','RO'])&df.ORIG.isin(['MATRIZ','FILIAL SP','FILIAL MG'])].copy()
 d['GRUPO']=np.where(d.ORIG=='MATRIZ','MATRIZ','FILIAL SP + FILIAL MG')
 d['cep']=d['CEP ENTREGA'].str.replace(r'\D','',regex=True).astype(int)
 def icms(o,u):
