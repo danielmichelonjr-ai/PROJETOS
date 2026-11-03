@@ -4,8 +4,9 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.formatting.rule import ColorScaleRule, CellIsRule
 from openpyxl.utils import get_column_letter as L
 D='./'  # pasta com data/ (xlsx de entrada) e base.pkl
-OUT='Simulacao_FRETEX_PR_SC_90dias.xlsx'
+OUT='Simulacao_FRETEX_PR_SC_AGO-OUT.xlsx'
 df=pd.read_pickle(D+'base.pkl'); df=df[df['STATUS HUB']!='Cancelado'].reset_index(drop=True)
+PER=f"{df['DATA PAGAMENTO'].min():%d/%m/%Y} a {df['DATA PAGAMENTO'].max():%d/%m/%Y}"
 BANDS=['0 - 20','20 - 40','40 - 60','60 - 70','70 - 90','90 - 120','120 - 160','160 - 200','200 - 1500']
 top={}
 for o in ['MATRIZ','FILIAL SP']:
@@ -32,29 +33,31 @@ def put(ws,r,c,v,fmt=None,font=B,fill=None):
     return x
 # ---------- Premissas
 P=wb.active; P.title='Premissas'
-P['A1']='Simulação FRETEX – pedidos PR e SC (06/08/2026 a 03/11/2026)'; P['A1'].font=T
+P['A1']=f'Simulação FRETEX – pedidos PR e SC ({PER})'; P['A1'].font=T
 rows=[('Parâmetro editável',None),
 ('ICMS a acrescentar sobre a tabela FRETEX (%)',0),
 ('Fator aplicado ao frete FRETEX',"=1/(1-B4)")]
 P['A3']='Parâmetro'; P['B3']='Valor'
 for c in ('A3','B3'): P[c].font=H; P[c].fill=HF
-P['A4']='ICMS a acrescentar sobre a tabela FRETEX (%)'; P['B4']=0; P['B4'].font=BLUE; P['B4'].fill=YEL; P['B4'].number_format='0.0%'
-P['A5']='Fator aplicado ao frete FRETEX'; P['B5']='=1/(1-B4)'; P['B5'].number_format='0.0000'
-P['A6']='Limite p/ "muito competitiva" (dif. ≤)'; P['B6']=-0.15; P['B6'].font=BLUE; P['B6'].number_format=PC
-P['A7']='Limite p/ "empate técnico" (± dif.)'; P['B7']=0.05; P['B7'].font=BLUE; P['B7'].number_format=PC
-for r in range(4,8): P.cell(r,1).font=B
+ic=[('ICMS FRETEX – origem MATRIZ → destino PR',0.12),('ICMS FRETEX – origem MATRIZ → destino SC',0.12),('ICMS FRETEX – origem FILIAL SP → destino PR',0.12),('ICMS FRETEX – origem FILIAL SP → destino SC',0.12)]
+for k,(a,v) in enumerate(ic):
+    P.cell(4+k,1,a); c=P.cell(4+k,2,v); c.font=BLUE; c.fill=YEL; c.number_format='0.0%'
+P['A8']='Limite p/ "muito competitiva" (dif. ≤)'; P['B8']=-0.15; P['B8'].font=BLUE; P['B8'].number_format=PC
+P['A9']='Limite p/ "empate técnico" (± dif.)'; P['B9']=0.05; P['B9'].font=BLUE; P['B9'].number_format=PC
+for r in range(4,10): P.cell(r,1).font=B
 notes=['','PREMISSAS E FONTES',
-'• Base: arquivo "ultimos_90_dias_SC_e_PR.xlsx" (enviado pelo usuário). Pedidos CANCELADOS foram excluídos (459); restam %d pedidos.'%len(df),
+'• Base: arquivo "AGO - SET - OUT - SC e PR.xlsx" (enviado pelo usuário), período %s – %d pedidos (sem cancelados na base).'%(PER,len(df)),
 '• Custo atual = coluna "COTAÇÃO TRANSPORTADOR" (custo da transportadora que efetivamente cotou/atendeu o pedido).',
-'• ORIGEM: a base enviada NÃO possui a coluna "ORIGEM DE COTAÇÃO" (a coluna F é "DATA PAGAMENTO"). A origem foi inferida pelo transportador:',
-'     FILIAL SP = pedidos cotados pela "Dominalog Filial Sp"; MATRIZ = todos os demais. Se houver um export com a coluna de origem, basta refazer.',
+'• ORIGEM = coluna S "ORIGEM COTAÇÃO" da base (MATRIZ / FILIAL SP).',
 '• Tabela FRETEX: arquivo "tbl_FRETEX_BRASIL.xlsx" (layout Intelipost, aba "ORIGEM BENTO", CEP origem 01000000–99999999, cubagem 300 kg/m³).',
 '     A mesma tabela foi aplicada às duas origens (MATRIZ e FILIAL SP), pois é a única fornecida.',
 '• Cálculo FRETEX por pedido = frete-peso da faixa (até 10/20/30/50/70/100/150/200 kg; acima de 200 kg = valor 200 kg + excedente R$/kg × kg acima de 200)',
 '     + Ad valorem 0,18% s/ NF + GRIS 0,30% s/ NF + Pedágio R$ 4,00 a cada fração de 100 kg + CT-e R$ 20,00 + TDA da faixa de CEP.',
 '     Valor da NF = "VALOR PRODUTOS". Peso = "PESO ITENS" (peso real; a base não traz cubagem). Frete mínimo: não preenchido na tabela.',
 '     Quando o CEP cai em mais de uma faixa, foi usada a faixa mais específica (menor intervalo). 100% dos CEPs foram encontrados na tabela.',
-'• ICMS: o campo "ICMS Incluso? (S/N)" está em branco na tabela. Cenário-base = ICMS incluso (0%). Para simular ICMS por fora, altere B4 (ex.: 12%).',
+'• ICMS: a tabela FRETEX NÃO inclui ICMS (confirmado pelo usuário). O ICMS é calculado "por dentro": Frete c/ ICMS = Frete s/ ICMS ÷ (1 − alíquota).',
+'     Alíquota padrão 12% = operação interestadual (RS→PR/SC e SP→PR/SC). Editáveis em B4:B7 – tudo recalcula (ex.: 17% se for operação interna em SC).',
+'     Os custos atuais (COTAÇÃO TRANSPORTADOR) foram considerados como já contendo ICMS.',
 '• Leitura: Dif% = (Custo FRETEX ÷ Custo atual) − 1. Negativo = FRETEX mais barata. Participação = frete ÷ valor dos produtos (custo/pedido).',
 '• Top 20 cidades = cidades com mais pedidos em cada UF, separadamente para cada origem.']
 for i,n in enumerate(notes): c=P.cell(9+i,1,n); c.font=BB if n=='PREMISSAS E FONTES' else B
@@ -66,7 +69,7 @@ cols=[('PEDIDO HUB','PEDIDO HUB',None,14),('DATA PAGAMENTO','DATA PAGAMENTO','dd
 ('FAIXA PESO','RANGE FRETE (KG)',None,10),('VALOR PRODUTOS','VALOR PRODUTOS',MO,12),('TRANSPORTADOR ATUAL','TRANSPORTADOR COTAÇÃO',None,20),
 ('CUSTO ATUAL','COTAÇÃO TRANSPORTADOR',MO,12),('FRETEX REGIÃO','FX_REGIAO',None,10),('FRETEX PRAZO (d.u.)','FX_PRAZO','0',9),
 ('FRETEX FRETE-PESO','FX_PESO',MO,12),('FRETEX ADV+GRIS','FX_ADV_GRIS',MO,12),('FRETEX PEDÁGIO+CTE+TDA','FX_TAXAS',MO,12),('TOP20','TOP20','0',7)]
-hdr(Bs,1,1,[c[0] for c in cols]+['FRETEX TOTAL S/ ICMS','FRETEX SIMULADO','DIF R$ (FRETEX − ATUAL)','FRETEX MAIS BARATA (1/0)'])
+hdr(Bs,1,1,[c[0] for c in cols]+['FRETEX TOTAL S/ ICMS','FRETEX SIMULADO C/ ICMS','DIF R$ (FRETEX − ATUAL)','FRETEX MAIS BARATA (1/0)'])
 for i,row in enumerate(df.itertuples(index=False),start=2):
     rd=row._asdict() if hasattr(row,'_asdict') else None
 for j,(h,src,fmt,w) in enumerate(cols,start=1):
@@ -78,7 +81,7 @@ for j,(h,src,fmt,w) in enumerate(cols,start=1):
     Bs.column_dimensions[L(j)].width=w
 for i in range(2,N+1):
     Bs.cell(i,20,f'=P{i}+Q{i}+R{i}').number_format=MO
-    Bs.cell(i,21,f'=T{i}*Premissas!$B$5').number_format=MO
+    Bs.cell(i,21,f'=T{i}/(1-IF(E{i}="MATRIZ",IF(F{i}="PR",Premissas!$B$4,Premissas!$B$5),IF(F{i}="PR",Premissas!$B$6,Premissas!$B$7)))').number_format=MO
     Bs.cell(i,22,f'=U{i}-M{i}').number_format=MO
     Bs.cell(i,23,f'=IF(U{i}<M{i},1,0)')
 for j in range(20,24): Bs.column_dimensions[L(j)].width=13
@@ -87,7 +90,7 @@ for row in Bs.iter_rows(min_row=2,max_row=N):
     for c in row: c.font=B
 R=lambda col: f'Base!${col}$2:${col}${N}'
 ORI,UF,CID,FX,ATU,VP,WIN,TOPC,BAND,CAR=R('E'),R('F'),R('G'),R('U'),R('M'),R('K'),R('W'),R('S'),R('J'),R('L')
-def leitura(cell): return f'=IF({cell}<=Premissas!$B$6,"Muito competitiva",IF({cell}<-Premissas!$B$7,"Competitiva",IF({cell}<=Premissas!$B$7,"Empate técnico","Precisa melhorar")))'
+def leitura(cell): return f'=IF({cell}<=Premissas!$B$8,"Muito competitiva",IF({cell}<-Premissas!$B$9,"Competitiva",IF({cell}<=Premissas!$B$9,"Empate técnico","Precisa melhorar")))'
 def cfmt(ws,rng):
     ws.conditional_formatting.add(rng,ColorScaleRule(start_type='num',start_value=-0.4,start_color='63BE7B',mid_type='num',mid_value=0,mid_color='FFFFFF',end_type='num',end_value=0.4,end_color='F8696B'))
 # ---------- Resumo
@@ -126,18 +129,17 @@ for k in range(1,16): S.cell(r,k).fill=TOT; S.cell(r,k).font=BB
 cfmt(S,f'H5:H{r}')
 # carrier table
 r+=3; S.cell(r-1,1,'Por transportadora atual (mesmos pedidos recalculados na FRETEX)').font=BB
-hdr(S,r,1,['Origem','Transportador atual']+H1[2:]); r+=1
+hdr(S,r,1,['Origem','Transportador atual']+H1[2:]); r+=1; cs=r
 for o in ['MATRIZ','FILIAL SP']:
     for car in df[df.ORIGEM==o]['TRANSPORTADOR COTAÇÃO'].value_counts().index:
         put(S,r,1,o); put(S,r,2,car); rowf(S,r,f'{ORI},"{o}",{CAR},"{car}"'); r+=1
-cfmt(S,f'H{r-15}:H{r}')
+cfmt(S,f'H{cs}:H{r}')
 for j,w in enumerate([11,20,9,14,13,13,13,9,11,11,9,9,9,11,17],start=1): S.column_dimensions[L(j)].width=w
 S.row_dimensions[4].height=42; S.freeze_panes='C5'
 # ---------- Top20
 for o in ['MATRIZ','FILIAL SP']:
     ws=wb.create_sheet(f'Top20 {o}')
     ws['A1']=f'Top 20 cidades por UF – origem {o} (ranking por nº de pedidos)'; ws['A1'].font=T
-    if o=='FILIAL SP': ws['A2']='Atenção: amostra pequena em SC (46 pedidos no total) – cidades com 1–2 pedidos têm baixa significância.'; ws['A2'].font=Font(name=F,italic=True,color='C00000')
     r=4
     for uf in ['PR','SC']:
         ws.cell(r,1,f'{uf}').font=Font(name=F,bold=True,size=12); r+=1
