@@ -117,6 +117,7 @@ FILLS={'MUITO BEM':'C6EFCE','BEM (':'E2EFDA','ATENÇÃO':'FFEB9C','PRECISA':'FFC
 def fmt_for(col):
     cl=col.lower()
     if '%' in cl or 'redução' in cl: return '0.0%'
+    if cl.startswith('dif. r$'): return '#,##0.00'
     if 'prazo' in cl or 'pedidos' in cl or 'faixas de cep' in cl or 'cep' in cl or 'rank' in cl or cl in('nota','pedido hub'): return None
     if 'peso' in cl: return '0.0'
     if any(k in cl for k in ['r$','custo','petrymar','médio','ticket','valor','frete','excedente','kg','tda','economia']): return '#,##0.00'
@@ -161,6 +162,7 @@ S={'2-Resumo MT e MS':[(res,'RESUMO - PEDIDOS ORIGEM FILIAL SP (ago-out/2026) SI
     (ref,'TODAS AS TRANSPORTADORAS/ORIGENS x FAIXA DE PESO',None)],
  '7-Tabela GRU x Vigente':[(taxas,'ESTRUTURA DE TAXAS - TABELA GUARULHOS x TABELA REAJUSTADA (MATRIZ)',None),(lv,'NÍVEIS DE PREÇO DA TABELA GUARULHOS (frete-peso, R$)',None),(tda,'CIDADES COM TDA NA TABELA GUARULHOS',None),
     (tc,'FRETE-PESO POR CIDADE - GUARULHOS x TABELA VIGENTE PETRYMAR (origem Matriz)','Tabela vigente = TABELA ATUAL PETRYMAR enviada anteriormente. Dif% < 0 = Guarulhos mais barata no frete-peso.')],
+ '9-Matriz x Filial SP':__import__('cmp_blocks').blocks(pd.read_pickle('sim3.pkl')),
  '8-Base Simulada':[(base,'BASE PEDIDO A PEDIDO - MT e MS - ORIGEM FILIAL SP',None)]}
 for name,bl in S.items():
     ws=wb.create_sheet(name); r=1
