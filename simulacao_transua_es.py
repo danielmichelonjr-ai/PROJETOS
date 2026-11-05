@@ -4,12 +4,25 @@ import numpy as np, pandas as pd
 PED, TAB, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 ICMS = 0.07  # SP/Sul-Sudeste -> ES (interestadual). Tabela informa ICMS NÃO incluso.
 
-t = pd.read_excel(TAB, header=None)
-tab = t.iloc[4:, 2:22].copy()
-tab.columns = ['CEPI', 'CEPF', 'PRAZO', 'MINIMO', 10, 20, 40, 60, 70, 100, 150, 200,
-               'EXCED', 'ADVALOR', 'SECCAT', 'GRIS', 'TAS', 'PEDAGIO', 'PED_FRAC', 'ENTREGA']
-tab = tab.astype(float).sort_values('CEPI').reset_index(drop=True)
-FAIXAS = [10, 20, 40, 60, 70, 100, 150, 200]
+def ler_tabela(path):
+    """Lê a tabela Intelipost; as faixas de peso vêm do cabeçalho (colunas numéricas)."""
+    t = pd.read_excel(path, header=None)
+    hdr = t.iloc[3].tolist()
+    ini = hdr.index('CEPI')
+    fim = max(i for i, h in enumerate(hdr) if isinstance(h, str) and h.strip()) + 1
+    nomes = {'CEPI': 'CEPI', 'CEPF': 'CEPF', 'PRAZO(DIAS ÚTEIS)': 'PRAZO', 'FRETE TOTAL MÍNIMO': 'MINIMO',
+             'VALOR EXCEDENTE': 'EXCED', 'ADVALOR': 'ADVALOR', 'SECCAT VALOR FIXO': 'SECCAT', 'GRIS(%)': 'GRIS',
+             'TAS VALOR FIXO': 'TAS', 'PEDÁGIO VALOR FIXO': 'PEDAGIO', 'PEDÁGIO FRAÇÃO A CADA x KG': 'PED_FRAC',
+             'ENTREGA VALOR FIXO': 'ENTREGA'}
+    cols = [int(h) if not isinstance(h, str) else nomes[h.strip()] for h in hdr[ini:fim]]
+    tab = t.iloc[4:, ini:fim].copy()
+    tab.columns = cols
+    tab = tab.dropna(subset=['CEPI']).astype(float).sort_values('CEPI').reset_index(drop=True)
+    return tab, sorted(c for c in cols if isinstance(c, int))
+
+
+tab, FAIXAS = ler_tabela(TAB)
+MAXF = FAIXAS[-1]
 
 d = pd.read_excel(PED, dtype={'CEP ENTREGA': str})
 d.columns = d.columns.str.strip()
@@ -27,7 +40,7 @@ def cota(cep, peso, nf):
     r = r.iloc[0]
     fp = next((r[f] for f in FAIXAS if peso <= f), None)
     if fp is None:
-        fp = r[200] + (peso - 200) * r.EXCED
+        fp = r[MAXF] + (peso - MAXF) * r.EXCED
     pedagio = math.ceil(peso / r.PED_FRAC) * r.PEDAGIO
     soma = fp + nf * r.ADVALOR + nf * r.GRIS + r.SECCAT + r.TAS + pedagio + r.ENTREGA
     tot = max(soma, r.MINIMO)
@@ -94,7 +107,7 @@ with pd.ExcelWriter(OUT, engine='openpyxl') as w:
         f'Tabela simulada: {TAB.split("/")[-1]}',
         'Base: pedidos com destino ES, pagos de 01/07 a 30/09 (todos os status).',
         'Custo atual = coluna "COTAÇÃO TRANSPORTADOR" (custo cotado da transportadora usada).',
-        'TRANSUA = tabela Intelipost: frete-peso pela faixa (até 10/20/40/60/70/100/150/200 kg; acima de 200 kg = valor 200 kg + excedente/kg)',
+        f'TRANSUA = tabela Intelipost: frete-peso pela faixa (até {"/".join(map(str, FAIXAS))} kg; acima de {MAXF} kg = valor {MAXF} kg + excedente/kg)',
         f"  + Ad valorem {tab.ADVALOR.iat[0]:.3%} NF + GRIS {tab.GRIS.iat[0]:.1%} NF + TAS R${tab.TAS.iat[0]:.2f} + Pedágio R${tab.PEDAGIO.iat[0]:.2f} a cada {tab.PED_FRAC.iat[0]:.0f} kg (fração) + Entrega R${tab.ENTREGA.iat[0]:.2f} + SECCAT (R${tab.SECCAT.max():.0f} em algumas faixas de CEP).",
         f"Frete mínimo da tabela (R${tab.MINIMO.min():.0f} capital/Grande Vitória, R${tab.MINIMO.max():.0f} interior) aplicado sobre o total.",
         'Tabela informa ICMS NÃO incluso: valor bruto com ICMS interestadual de 7% (origem Sul/Sudeste -> ES): total / (1 - 0,07).',

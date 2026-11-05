@@ -133,8 +133,24 @@ def win(x):
     return (x.TRANSUA < x.ATUAL).mean()
 
 
-tb = pd.read_excel(TAB, header=None).iloc[4:, 2:22].astype(float)
-tb.columns = ['CEPI', 'CEPF', 'PRAZO', 'MINIMO', 10, 20, 40, 60, 70, 100, 150, 200, 'EXCED', 'ADVALOR', 'SECCAT', 'GRIS', 'TAS', 'PEDAGIO', 'PED_FRAC', 'ENTREGA']
+def ler_tabela(path):
+    """Lê a tabela Intelipost; as faixas de peso vêm do cabeçalho (colunas numéricas)."""
+    t = pd.read_excel(path, header=None)
+    hdr = t.iloc[3].tolist()
+    ini = hdr.index('CEPI')
+    fim = max(i for i, h in enumerate(hdr) if isinstance(h, str) and h.strip()) + 1
+    nomes = {'CEPI': 'CEPI', 'CEPF': 'CEPF', 'PRAZO(DIAS ÚTEIS)': 'PRAZO', 'FRETE TOTAL MÍNIMO': 'MINIMO',
+             'VALOR EXCEDENTE': 'EXCED', 'ADVALOR': 'ADVALOR', 'SECCAT VALOR FIXO': 'SECCAT', 'GRIS(%)': 'GRIS',
+             'TAS VALOR FIXO': 'TAS', 'PEDÁGIO VALOR FIXO': 'PEDAGIO', 'PEDÁGIO FRAÇÃO A CADA x KG': 'PED_FRAC',
+             'ENTREGA VALOR FIXO': 'ENTREGA'}
+    cols = [int(h) if not isinstance(h, str) else nomes[h.strip()] for h in hdr[ini:fim]]
+    tab = t.iloc[4:, ini:fim].copy()
+    tab.columns = cols
+    tab = tab.dropna(subset=['CEPI']).astype(float).sort_values('CEPI').reset_index(drop=True)
+    return tab, sorted(c for c in cols if isinstance(c, int))
+
+
+tb, FAIXAS_TAB = ler_tabela(TAB)
 MIN_CAP, MIN_INT = tb.MINIMO.min(), tb.MINIMO.max()
 SECCAT = tb.SECCAT.max()
 gua = tb[tb.CEPI == 29200000].iloc[0]
@@ -189,28 +205,36 @@ ws.column_dimensions['B'].width = 50
 diff_rules(ws, 'F9:F11'); status_rules(ws, 'H9:H11')
 
 r = 13
-if SIM_V1:
-    v1 = load(SIM_V1)
-    cen = load(SIM_CEN) if SIM_CEN else None
+ANT = [kv.split('=', 1) for kv in SIM_V1.split(';')] if SIM_V1 else []
+cen = load(SIM_CEN) if SIM_CEN else None
+if ANT:
+    ant = [(v, load(pth)) for v, pth in ANT]
     section(ws, r, 'Evolução da proposta: diferença vs. mercado (negativo = TRANSUA mais barata)', 7); r += 1
-    header(ws, r, ['Região', 'Proposta V1', f'Proposta {VER}', 'Melhora (p.p.)', 'Mais barata em (V1)', f'Mais barata em ({VER})',
-                   f'{VER} + ajustes 1 a 3 abaixo' if cen is not None else '']); r += 1
+    cols_ = ['Região'] + [f'Proposta {v}' for v, _ in ant] + [f'Proposta {VER}', f'{VER} x {ant[-1][0]} (p.p.)', f'Mais barata em ({VER})']
+    if cen is not None:
+        cols_.append(f'{VER} + ajustes 1 a 3 abaixo')
+    header(ws, r, cols_); r += 1
     e0 = r
+    cv = 3 + len(ant)  # coluna da versão atual
+    L = lambda c: chr(64 + c)
     for reg in ['Total ES', 'Grande Vitória', 'Interior']:
-        f1 = v1 if reg == 'Total ES' else v1[v1.REGIAO == reg]
-        f2 = b if reg == 'Total ES' else b[b.REGIAO == reg]
+        sel = lambda x: x if reg == 'Total ES' else x[x.REGIAO == reg]
         cellw(ws, r, 2, reg, align='left', bold=True)
-        cellw(ws, r, 3, round(dif(f1), 4), P)
-        cellw(ws, r, 4, round(dif(f2), 4), P, bold=True)
-        cellw(ws, r, 5, f'=(C{r}-D{r})*100', '0.0" p.p."')
-        cellw(ws, r, 6, round(win(f1), 3), P0)
-        cellw(ws, r, 7, round(win(f2), 3), P0, bold=True)
+        for j, (_, x) in enumerate(ant):
+            cellw(ws, r, 3 + j, round(dif(sel(x)), 4), P)
+        cellw(ws, r, cv, round(dif(sel(b)), 4), P, bold=True, fill=LIGHT)
+        cellw(ws, r, cv + 1, f'=({L(cv)}{r}-{L(cv - 1)}{r})*100', '+0.0" p.p.";-0.0" p.p.";0.0" p.p."')
+        cellw(ws, r, cv + 2, round(win(sel(b)), 3), P0, bold=True)
         if cen is not None:
-            f3 = cen if reg == 'Total ES' else cen[cen.REGIAO == reg]
-            cellw(ws, r, 8, round(dif(f3), 4), P, bold=True, fill='EBF6EE')
+            cellw(ws, r, cv + 3, round(dif(sel(cen)), 4), P, bold=True, fill='EBF6EE')
         r += 1
-    diff_rules(ws, f'C{e0}:D{r-1}'); diff_rules(ws, f'H{e0}:H{r-1}')
-    r += 1
+    diff_rules(ws, f'C{e0}:{L(cv)}{r-1}')
+    ws.conditional_formatting.add(f'{L(cv+1)}{e0}:{L(cv+1)}{r-1}', CellIsRule(operator='lessThan', formula=['0'], font=Font(name=F, bold=True, color=GREEN_T)))
+    ws.conditional_formatting.add(f'{L(cv+1)}{e0}:{L(cv+1)}{r-1}', CellIsRule(operator='greaterThan', formula=['0'], font=Font(name=F, bold=True, color=RED_T)))
+    if cen is not None:
+        diff_rules(ws, f'{L(cv+3)}{e0}:{L(cv+3)}{r-1}')
+    ws.cell(r, 2, 'p.p. negativo = proposta atual mais barata que a anterior.').font = Font(name=F, size=9, italic=True, color='595959')
+    r += 2
 
 gv = b[b.REGIAO == 'Grande Vitória']; it = b[b.REGIAO == 'Interior']
 cid = b.groupby('CIDADE').apply(lambda g: pd.Series({'n': len(g), 'd': dif(g)}), include_groups=False).loc[top]
@@ -239,15 +263,31 @@ neg = [f'Interior: {pct(dif(it))} vs. mercado, mais barata em só {pct(win(it), 
        f'(TRANSUA {brl(gv20.TRANSUA.mean())} x mercado {brl(gv20.ATUAL.mean())}).']
 if pesado:
     neg.append('Pedidos pesados: ' + ', '.join(f'{f} kg {pct(fxd[f])}' for f in pesado) + '.')
+fx2040 = t20[t20.FX == '20 - 40']
+if fxd['20 - 40'] > 0.05:
+    neg.insert(1, f'Pedidos de 20 a 40 kg (maior volume: {len(fx2040)} pedidos no top 20): {pct(fxd["20 - 40"])} vs. mercado '
+                  f'(TRANSUA {brl(fx2040.TRANSUA.mean())} x mercado {brl(fx2040.ATUAL.mean())}). A faixa de 40 kg ficou cara.')
+inv = []
+for _, row in tb.drop_duplicates(subset=FAIXAS_TAB).iterrows():
+    for f1, f2 in zip(FAIXAS_TAB, FAIXAS_TAB[1:]):
+        if row[f2] < row[f1]:
+            reg_ = 'capital' if row.MINIMO == MIN_CAP else 'interior'
+            inv.append(f'faixa de {f2} kg ({brl(row[f2])}) mais barata que a de {f1} kg ({brl(row[f1])}) nos CEPs da {reg_}')
+if inv:
+    neg.append('Inconsistência na tabela: ' + '; '.join(dict.fromkeys(inv)) + '. Confirmar valores.')
 if len(sec):
     neg.append(f'Taxa SECCAT de {brl(SECCAT)} mantida: {len(sec)} pedidos no período, custo médio TRANSUA {brl(sec.TRANSUA.mean())} x mercado {brl(sec.ATUAL.mean())}.')
 asks = [f'Reduzir o frete mínimo do interior de {brl(MIN_INT)} para ~R$ 125,00 (sem ICMS).',
         f'Enquadrar Guarapari (CEPs 29200-000 a 29229-999) na tabela da capital: mínimo {brl(MIN_CAP)} e prazo 12 d.u.',
         f'Retirar a taxa SECCAT de {brl(SECCAT)}.',
         f'Reduzir o mínimo da capital de {brl(MIN_CAP)} para ~R$ 75,00 (sem ICMS) para os pedidos de até 20 kg.']
+if fxd['20 - 40'] > 0.05:
+    asks.append(f'Rever a faixa de 40 kg: pedidos de 20 a 40 kg são o maior volume e estão {pct(fxd["20 - 40"])} acima do mercado.')
+if inv:
+    asks.append('Corrigir a inconsistência entre as faixas de 60 e 70 kg (o preço deve crescer com o peso).')
 if pesado:
     asks.append('Reduzir a faixa de 200 kg e o excedente por kg em ~10% a 15% (ver aba "Faixas de Peso").')
-if SIM_V1 and cen is not None:
+if cen is not None:
     asks.append(f'Com os ajustes 1 a 3, a proposta {VER} ficaria {pct(dif(cen))} vs. mercado no ES (interior {pct(dif(cen[cen.REGIAO == "Interior"]))}), '
                 f'mais barata em {pct(win(cen), False)} dos pedidos.')
 
@@ -266,7 +306,7 @@ r += 1
 section(ws, r, 'Nossa proposta de ajuste', 7); r += 1
 for i, t in enumerate(asks, 1):
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
-    last = SIM_V1 and SIM_CEN and i == len(asks)
+    last = cen is not None and i == len(asks)
     c = ws.cell(r, 2, ('➜  ' if last else f'{i}.  ') + t)
     c.font = Font(name=F, size=10, bold=True, color=GREEN_T if last else NAVY); c.alignment = Alignment(wrap_text=True, vertical='center', indent=1)
     c.fill = PatternFill('solid', fgColor='EBF6EE' if last else LIGHT); ws.row_dimensions[r].height = 22; r += 1
@@ -375,10 +415,10 @@ lines = [
     ('Base', 'Pedidos com destino ao Espírito Santo, pagos entre 01/07 e 30/09 (1.205 pedidos).'),
     ('Preço atual (mercado)', 'Custo de frete cotado pela transportadora que efetivamente atendeu cada pedido, com ICMS.'),
     ('Preço TRANSUA', 'Tabela proposta (formato Intelipost) aplicada pedido a pedido:'),
-    ('', '•  Frete-peso pela faixa (até 10/20/40/60/70/100/150/200 kg; acima de 200 kg = faixa de 200 kg + excedente por kg).'),
+    ('', f'•  Frete-peso pela faixa (até {"/".join(map(str, FAIXAS_TAB))} kg; acima de {FAIXAS_TAB[-1]} kg = faixa de {FAIXAS_TAB[-1]} kg + excedente por kg).'),
     ('', f'•  + Ad valorem {f"{tb.ADVALOR.iat[0]*100:.3f}%".replace(".", ",")} e GRIS {tb.GRIS.iat[0]*100:.1f}% sobre a nota fiscal, TAS {brl(tb.TAS.iat[0])}, pedágio {brl(tb.PEDAGIO.iat[0])} a cada {tb.PED_FRAC.iat[0]:.0f} kg, entrega {brl(tb.ENTREGA.iat[0])} e SECCAT ({brl(SECCAT)} nas faixas de CEP indicadas).'.replace('0.2%', '0,2%')),
     ('', f'•  Frete mínimo: {brl(MIN_CAP)} (Grande Vitória, CEP 29000-000 a 29184-999) e {brl(MIN_INT)} (demais CEPs), aplicado sobre o total.'),
-    ('Proposta', f'Tabela simulada: proposta {VER} da TRANSUA' + (' (comparação com a proposta V1 na aba Resumo).' if SIM_V1 else '.')),
+    ('Proposta', f'Tabela simulada: proposta {VER} da TRANSUA' + (f' (comparação com as propostas {", ".join(v for v, _ in ANT)} na aba Resumo).' if ANT else '.')),
     ('ICMS', 'A tabela informa ICMS não incluso; aplicado ICMS interestadual de 7% (origem Sudeste → ES) por dentro: total ÷ 0,93.'),
     ('Peso', 'Peso real dos itens (a base não tem dimensões, portanto a cubagem de 300 kg/m³ não foi aplicada).'),
     ('Confidencialidade', 'Preços de mercado apresentados apenas como médias, sem identificação das transportadoras.'),
