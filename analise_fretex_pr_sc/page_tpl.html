@@ -1,0 +1,194 @@
+<title>Estudo FRETEX PR e SC</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: relatório de uma coluna (~1080px) — veredito, números-chave, depois evidências por origem, faixa, região e cidade; fecha com a lista de melhorias. Barras divergentes numa escala única (−50% a +60%). */
+:root{
+  --bg:#F2F5F7; --surface:#FFFFFF; --ink:#14202A; --muted:#5A6A77; --line:#D6DEE4;
+  --accent:#1D5FA8; --good:#1E8657; --bad:#C1442A; --even:#8A96A0;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E151B; --surface:#152029; --ink:#E4ECF1; --muted:#92A3B0; --line:#26343F;
+  --accent:#6FA9EE; --good:#4CC489; --bad:#F27C60; --even:#71808C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E151B; --surface:#152029; --ink:#E4ECF1; --muted:#92A3B0; --line:#26343F;
+  --accent:#6FA9EE; --good:#4CC489; --bad:#F27C60; --even:#71808C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:56px}
+h1,h2,h3{font-family:var(--display);font-stretch:85%;text-wrap:balance;margin:0;line-height:1.08}
+h1{font-size:clamp(30px,5.2vw,50px);font-weight:800;letter-spacing:-.01em}
+h2{font-size:clamp(22px,3vw,30px);font-weight:700}
+h3{font-size:18px;font-weight:700;font-stretch:90%}
+p{margin:0;max-width:68ch}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+.sec{display:grid;gap:18px}
+.sec>header{display:grid;gap:8px}
+.goodt{color:var(--good)} .badt{color:var(--bad)} .event{color:var(--muted)}
+b.goodt,b.badt,b.event{font-weight:600}
+/* hero */
+.hero{display:grid;gap:18px;padding-bottom:28px;border-bottom:2px solid var(--ink)}
+.hero .lede{font-size:18px;line-height:1.5}
+.stamp{display:flex;flex-wrap:wrap;gap:8px 18px;font:400 12.5px/1.4 var(--mono);color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.kpi{background:var(--surface);padding:16px 18px;display:grid;gap:6px;align-content:start}
+.kpi .v{font:700 clamp(24px,3.2vw,32px)/1 var(--display);font-stretch:80%;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:13px;color:var(--muted);line-height:1.4}
+.kpi.hl .v{color:var(--good)}
+@media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* panels/tables */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;min-width:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+tr:last-child>*{border-bottom:0}
+thead th,table.t th[scope=col]{font:500 11.5px/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+tbody th{font-weight:500}
+.t tbody th .org{white-space:nowrap}
+.t tbody th{white-space:nowrap}
+.r{text-align:right;white-space:nowrap}
+.org{font:500 11px/1 var(--mono);letter-spacing:.06em;padding:3px 6px;border:1px solid var(--line);border-radius:3px}
+code{font:500 12px var(--mono);background:color-mix(in srgb,var(--accent) 10%,transparent);padding:2px 5px;border-radius:3px}
+.barcell{width:30%;min-width:160px}
+.track{position:relative;display:block;height:10px;background:color-mix(in srgb,var(--line) 45%,transparent);border-radius:2px}
+.zero{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--ink);opacity:.55}
+.fill{position:absolute;top:0;bottom:0;border-radius:2px}
+.fill.good{background:var(--good)} .fill.bad{background:var(--bad)} .fill.even{background:var(--even)}
+.fill.clip{background-image:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in srgb,var(--surface) 55%,transparent) 4px 6px)}
+.scale{display:flex;justify-content:space-between;font:400 11px var(--mono);color:var(--muted);padding:0 12px 10px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+/* heatmap */
+.heat td.hc{text-align:center;padding:10px 6px;border-left:1px solid var(--surface)}
+.heat td.hc b{display:block;font:600 15px/1.1 var(--mono)}
+.heat td.hc span{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.heat td.na{background:transparent}
+.heat th[scope=col]{text-align:center}
+.heat th[scope=col] span{text-transform:none;letter-spacing:0}
+.heat th[scope=row]{font:500 13px var(--mono);white-space:nowrap}
+/* city lists */
+.cities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:960px){.cities{grid-template-columns:minmax(0,1fr)}}
+.clist{padding:16px 16px 10px;display:grid;gap:10px;align-content:start}
+.clist header{display:grid;gap:4px}
+.clist .score{font:400 12px var(--mono);color:var(--muted)}
+.clist ol{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.clist li{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(70px,38%) 46px;gap:8px;align-items:center;font-size:13.5px}
+.cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cq{font:400 11.5px var(--mono);color:var(--muted);text-align:right}
+.clist li b{font:500 12.5px var(--mono);text-align:right}
+/* two-col prose */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.two{grid-template-columns:minmax(0,1fr)}}
+.wins{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.wins{grid-template-columns:minmax(0,1fr)}}
+.win{padding:18px;display:grid;gap:8px;align-content:start;border-top:3px solid var(--good)}
+.win .big{font:700 26px/1 var(--display);font-stretch:80%;color:var(--good)}
+/* improvements */
+.fix{display:grid;gap:12px;counter-reset:fx}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 18px;padding:18px;align-items:start}
+.item .pri{font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:3px;white-space:nowrap}
+.pri.alta{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pri.media{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.pri.check{background:color-mix(in srgb,var(--even) 20%,transparent);color:var(--muted)}
+.item .body{display:grid;gap:6px;min-width:0}
+.item .val{text-align:right;display:grid;gap:2px}
+.item .val b{font:700 22px/1 var(--display);font-stretch:80%;font-variant-numeric:tabular-nums}
+.item .val span{font-size:12px;color:var(--muted)}
+@media (max-width:640px){.item{grid-template-columns:minmax(0,1fr)}.item .val{text-align:left}}
+.note{font-size:13px;color:var(--muted);display:grid;gap:6px;border-top:1px solid var(--line);padding-top:18px}
+.note p{max-width:none}
+.callout{padding:18px 20px;border-left:4px solid var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface));border-radius:0 6px 6px 0;display:grid;gap:6px}
+</style>
+
+<main class="wrap">
+
+<section class="hero">
+  <span class="eyebrow">Estudo de frete · PR e SC · ago a out/2026</span>
+  <h1>FRETEX sai {{D}} mais barata no total, mas só ganha de verdade no PR</h1>
+  <p class="lede">Recalculamos os {{N}} pedidos do trimestre na tabela FRETEX revisada (CT-e de R$ 10, ICMS de 12% por dentro) e comparamos com o custo de quem atendeu cada pedido. A transportadora é muito forte saindo da Filial SP e competitiva saindo da Matriz para o PR. Para Santa Catarina, ainda precisa de ajuste.</p>
+  <div class="stamp"><span>Base: AGO-SET-OUT SC e PR</span><span>Tabela: tbl_FRETEX_BRASIL (CT-e R$ 10)</span><span>ICMS 12% por dentro</span><span>Antes da revisão do CT-e: {{DOLD}}</span></div>
+</section>
+
+<section class="sec" aria-label="Números-chave">
+  <div class="kpis">
+    <div class="kpi hl"><span class="v">{{SAV}}</span><span class="l">economia no trimestre se a FRETEX levasse todos os pedidos ({{D}})</span></div>
+    <div class="kpi hl"><span class="v">{{SEL}}</span><span class="l">economia se ela levar só os pedidos em que é a mais barata ({{SELP}} do custo)</span></div>
+    <div class="kpi"><span class="v">{{PWIN}}</span><span class="l">dos pedidos ({{NWIN}}) ficariam mais baratos na FRETEX</span></div>
+    <div class="kpi"><span class="v">{{PAT}} → {{PFX}}</span><span class="l">frete sobre o valor dos produtos (custo/pedido), atual → FRETEX</span></div>
+  </div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Pontos positivos</span><h2>Onde a FRETEX já entrega resultado</h2></header>
+  <div class="wins">
+    <article class="panel win"><span class="big">{{DFSP}}</span><h3>Filial SP: mais barata em praticamente tudo</h3><p>Economia de {{SFSP}} no trimestre. Ganha nas 20 maiores cidades do PR, em todas as faixas de peso e contra as duas transportadoras atuais (IDH e Dominalog Filial SP). O frete cai de cerca de 26% para 17% do valor dos produtos.</p></article>
+    <article class="panel win"><span class="big">{{DMPR}}</span><h3>Matriz para o PR: competitiva</h3><p>Economia de {{SMPR}}. Curitiba fica 22% mais barata, com Campo Mourão, Fazenda Rio Grande, Paranaguá e Sarandi perto de −20%. É mais barata em todas as faixas de 20 a 160 kg.</p></article>
+    <article class="panel win"><span class="big">−12% a −18%</span><h3>Litoral norte de SC</h3><p>Joinville, Itajaí, Navegantes, Camboriú, Balneário Camboriú e Itapoá já ficam mais baratas que Transcaí, Aceville e Reunidas, saindo da Matriz.</p></article>
+    <article class="panel win"><span class="big">20 a 70 kg</span><h3>A faixa que mais vende</h3><p>De 20 a 70 kg, que concentra a maior parte dos pedidos, ela é mais barata em todas as rotas, com empate apenas de 40 a 70 kg da Matriz para SC. A redução do CT-e de R$ 20 para R$ 10 tirou {{CTEU}} de cada pedido e virou o resultado total de +1% para {{D}}.</p></article>
+  </div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Por origem e destino</span><h2>Resultado em cada rota</h2><p class="muted">Dif. = custo FRETEX ÷ custo atual − 1. Negativo (verde) significa FRETEX mais barata. Faixa de ±5% é tratada como empate.</p></header>
+  <div class="panel scroll">
+    <table class="t">
+      <thead><tr><th scope="col">Rota</th><th scope="col" class="r">Pedidos</th><th scope="col" class="r">Frete médio atual</th><th scope="col" class="r">Frete médio FRETEX</th><th scope="col" class="r">Dif. com CT-e R$ 20</th><th scope="col" class="r">Dif. atual</th><th scope="col">−50% · 0 · +60%</th><th scope="col" class="r">Mais barata em</th><th scope="col" class="r">Saldo trimestre</th></tr></thead>
+      <tbody>{{SEGROWS}}</tbody>
+    </table>
+  </div>
+  <div class="legend"><span><i style="background:var(--good)"></i>FRETEX mais barata</span><span><i style="background:var(--even)"></i>Empate (±5%)</span><span><i style="background:var(--bad)"></i>FRETEX mais cara</span><span>Saldo positivo = economia</span></div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Faixas de peso</span><h2>Leve e pesado em SC são os pontos fracos</h2><p class="muted">Diferença da FRETEX contra o custo atual em cada faixa de peso da base, todas as cidades. Células vazias têm menos de 5 pedidos.</p></header>
+  <div class="panel scroll"><table class="t heat">{{HEAT}}</table></div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Regiões da tabela FRETEX</span><h2>O problema está concentrado na região SC-I 2</h2><p class="muted">Agrupamento pelas regiões da própria tabela. SC-I 2 tem {{NSI2}} pedidos e fica {{DSI2}} acima do custo atual. É o ponto de negociação mais objetivo.</p></header>
+  <div class="panel scroll">
+    <table class="t"><thead><tr><th scope="col">Região da tabela</th><th scope="col" class="r">Pedidos</th><th scope="col" class="r">Dif.</th><th scope="col">−50% · 0 · +60%</th><th scope="col" class="r">Saldo trimestre</th></tr></thead><tbody>{{REGROWS}}</tbody></table>
+  </div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Top 20 cidades por volume</span><h2>Cidade a cidade</h2><p class="muted">Número ao lado da cidade = pedidos no trimestre. Barras hachuradas passaram do limite da escala.</p></header>
+  <div class="cities">
+    <article class="panel clist"><header><h3>Filial SP → PR</h3><span class="score">{{C1W}} mais baratas · {{C1E}} empates · {{C1L}} mais caras</span></header><ol>{{C1}}</ol></article>
+    <article class="panel clist"><header><h3>Matriz → PR</h3><span class="score">{{C2W}} mais baratas · {{C2E}} empates · {{C2L}} mais caras</span></header><ol>{{C2}}</ol></article>
+    <article class="panel clist"><header><h3>Matriz → SC</h3><span class="score">{{C3W}} mais baratas · {{C3E}} empates · {{C3L}} mais caras</span></header><ol>{{C3}}</ol></article>
+  </div>
+  <p class="muted">Filial SP → SC teve só 48 pedidos no trimestre e não entra na lista. Mesmo assim, a FRETEX seria mais barata em 47 deles.</p>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">Contra quem atende hoje</span><h2>Comparação com cada transportadora, nos mesmos pedidos</h2></header>
+  <div class="panel scroll">
+    <table class="t"><thead><tr><th scope="col">Transportadora atual</th><th scope="col" class="r">Pedidos</th><th scope="col" class="r">Médio atual</th><th scope="col" class="r">Médio FRETEX</th><th scope="col" class="r">Dif.</th><th scope="col">−50% · 0 · +60%</th></tr></thead><tbody>{{CAR}}</tbody></table>
+  </div>
+</section>
+
+<section class="sec">
+  <header><span class="eyebrow">O que ainda falta</span><h2>Melhorias antes de operar com a FRETEX</h2><p>Saindo da Matriz para SC, a FRETEX ainda fica {{DMSC}} mais cara ({{SMSC}} a mais no trimestre). Os pontos abaixo, em ordem de impacto, fecham essa diferença e reduzem o risco de operação.</p></header>
+  <div class="fix">
+    <article class="panel item"><span class="pri alta">Prioridade alta</span><div class="body"><h3>Rever o frete-peso de SC acima de 70 kg</h3><p>São {{N70}} pedidos da Matriz para SC acima de 70 kg, e a FRETEX fica {{D70}} acima do custo atual. O CT-e mais barato quase não muda esses pedidos, porque o peso da faixa domina o preço. Pedir redução nas faixas de 100, 150 e 200 kg das regiões SC-I 1 e SC-I 2.</p></div><div class="val"><b class="badt">{{GAP70}}</b><span>diferença no trimestre</span></div></article>
+    <article class="panel item"><span class="pri alta">Prioridade alta</span><div class="body"><h3>Baixar o preço da região SC-I 2</h3><p>SC-I 2 cobre o sul catarinense (Criciúma, Tubarão, Araranguá, Garopaba), a serra (Lages) e cidades como Tijucas, Biguaçu e Jaraguá do Sul. Fica {{DSI2}} acima do custo atual. Uma redução de cerca de 17% na região a deixaria em empate.</p></div><div class="val"><b class="badt">{{DSI2}}</b><span>{{NSI2}} pedidos</span></div></article>
+    <article class="panel item"><span class="pri media">Prioridade média</span><div class="body"><h3>Criar condição para pedidos até 20 kg</h3><p>Em {{N20}} pedidos leves, a FRETEX fica {{D20}} acima. CT-e, pedágio, 0,48% sobre a nota e ICMS pesam muito num frete pequeno, e a Jadlog atende essa faixa bem mais barato ({{DJAD}} de diferença). Pedir uma faixa até 5 ou 10 kg mais barata ou isenção de pedágio até 20 kg. A outra opção é deixar os leves com a Jadlog.</p></div><div class="val"><b class="badt">{{GAP20}}</b><span>em pedidos onde ela perde</span></div></article>
+    <article class="panel item"><span class="pri media">Prioridade média</span><div class="body"><h3>Rever a TDA de Guaíra e União da Vitória</h3><p>A taxa de difícil acesso deixa essas duas cidades {{DTDA}} acima do custo atual. São poucos pedidos, mas é um ajuste simples de pedir.</p></div><div class="val"><b class="badt">{{DTDA}}</b><span>diferença nas duas cidades</span></div></article>
+    <article class="panel item"><span class="pri check">Validar</span><div class="body"><h3>Confirmar alíquota de ICMS, prazo e cubagem</h3><p>O estudo usa 12% de ICMS para todas as rotas. Se alguma rota tiver outra alíquota, o resultado muda. O prazo da FRETEX vai de {{PMIN}} a {{PMAX}} dias úteis (média de {{PMED}}), e a base não traz o prazo atual para comparar. A tabela também usa cubagem de 300 kg/m³, e o estudo usou o peso real, porque a base não traz cubagem. Produtos volumosos podem ficar mais caros.</p></div><div class="val"><b>—</b><span>sem valor estimado</span></div></article>
+  </div>
+  <div class="callout"><h3>Como começar</h3><p>Colocar a FRETEX como mais uma opção na cotação já para os pedidos da Filial SP e da Matriz para o PR, deixando a cotação escolher a mais barata em cada pedido. Nesse modelo a economia estimada é de {{SEL}} por trimestre, cerca de {{SELY}} por ano. Para SC, ativar a FRETEX no litoral norte e voltar a negociar SC-I 2 e as faixas acima de 70 kg.</p></div>
+</section>
+
+<footer class="note">
+  <p><b>Como foi calculado.</b> Pedido a pedido: frete da faixa de peso (acima de 200 kg, valor de 200 kg mais o excedente por kg) + ad valorem 0,18% + GRIS 0,30% sobre o valor dos produtos + pedágio de R$ 4 a cada 100 kg + CT-e de R$ 10 + TDA da faixa de CEP. Sobre o total, ICMS de 12% por dentro (÷ 0,88). O custo atual é a coluna “COTAÇÃO TRANSPORTADOR”, considerada com ICMS. A origem vem da coluna “ORIGEM COTAÇÃO”. A mesma tabela foi aplicada às duas origens. Todos os CEPs foram encontrados na tabela.</p>
+  <p>A economia no modelo em que a cotação escolhe a mais barata supõe que a FRETEX ganha os pedidos em que é mais barata e que nada mais muda (prazo, cubagem, regra da cotação). Os números de ano são o trimestre × 4.</p>
+</footer>
+</main>
