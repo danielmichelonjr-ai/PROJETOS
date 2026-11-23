@@ -53,3 +53,8 @@ drop policy if exists "equipe" on public.proposta_faixas;
 create policy "equipe" on public.proposta_faixas for all to authenticated using (true) with check (true);
 drop policy if exists "equipe" on public.analises;
 create policy "equipe" on public.analises for all to authenticated using (true) with check (true);
+
+-- Projetos novos do Supabase não concedem acesso às tabelas automaticamente.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.propostas, public.proposta_faixas, public.analises to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
