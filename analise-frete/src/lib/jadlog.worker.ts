@@ -8,6 +8,13 @@ self.onmessage = (e: MessageEvent<{ buffer: ArrayBuffer; nome: string }>) => {
   try {
     const wb = read(new Uint8Array(e.data.buffer), { type: 'array', dense: true, cellFormula: false, cellHTML: false, cellStyles: false })
     for (const nomeAba of ordenarAbas(wb.SheetNames)) {
+      // Só as colunas A a Z interessam; planilhas formatadas até XFD multiplicam o trabalho.
+      const ws = wb.Sheets[nomeAba]
+      if (ws['!ref']) {
+        const area = utils.decode_range(ws['!ref'])
+        area.e.c = Math.min(area.e.c, 25)
+        ws['!ref'] = utils.encode_range(area)
+      }
       const linhas = utils.sheet_to_json<Celula[]>(wb.Sheets[nomeAba], { header: 1, raw: true, defval: null, blankrows: false })
       const cab = acharCabecalho(linhas)
       if (cab >= 0) {
