@@ -1,0 +1,429 @@
+<title>Validador JADLOG</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: ferramenta de bancada — faixa de carga da base, gabarito de regras ao lado, resumo e tabela de SKUs abaixo */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --surface-2:#eaeef2; --line:#d3dae1;
+  --fg:#17212b; --muted:#5b6876; --accent:#1d5fa8; --accent-fg:#ffffff; --accent-soft:#e1ecf8;
+  --bad:#b42318; --bad-soft:#fdecea; --ok:#1f7a45; --ok-soft:#e5f4ea; --warn:#9a5b00; --warn-soft:#fdf1dc;
+  --font-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --surface:#161e26; --surface-2:#1d2731; --line:#2c3844;
+  --fg:#e4eaf0; --muted:#97a4b2; --accent:#5d9ee6; --accent-fg:#0b1520; --accent-soft:#1a2e44;
+  --bad:#f07466; --bad-soft:#3a1c1a; --ok:#5cc28a; --ok-soft:#16301f; --warn:#e9ad4c; --warn-soft:#352812; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#161e26; --surface-2:#1d2731; --line:#2c3844;
+  --fg:#e4eaf0; --muted:#97a4b2; --accent:#5d9ee6; --accent-fg:#0b1520; --accent-soft:#1a2e44;
+  --bad:#f07466; --bad-soft:#3a1c1a; --ok:#5cc28a; --ok-soft:#16301f; --warn:#e9ad4c; --warn-soft:#352812; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--font-display);font-weight:700;font-size:30px;letter-spacing:.01em;margin:0;text-wrap:balance}
+h1 small{display:block;font-family:var(--font-body);font-weight:500;font-size:13px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+h2{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;letter-spacing:.02em;text-transform:uppercase}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono)}
+.num{font-variant-numeric:tabular-nums}
+.grid-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.grid-top{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:22px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:16px;background:var(--surface-2);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop .ico{width:44px;height:44px;flex:none;border-radius:8px;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center}
+.drop .txt{flex:1 1 220px;min-width:0}
+.drop strong{display:block;font-size:15px}
+.btn{font:inherit;font-weight:600;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible,.chip:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px}
+.status b{font-weight:600}
+.status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;vertical-align:1px}
+.status.loading .dot{background:var(--warn)}
+.status.error .dot{background:var(--bad)}
+.colmap{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px}
+.colmap span{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:2px 7px}
+.colmap b{font-family:var(--font-mono);color:var(--fg)}
+.rules{display:flex;flex-direction:column;gap:10px}
+.rule{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.rule:last-child{border-bottom:0}
+.rule .n{font-family:var(--font-mono);font-weight:600;color:var(--muted);font-size:12px}
+.rule label{font-weight:500}
+.rule .hint{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.rule .inp{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:13px}
+.rule input[type=number]{width:84px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--surface-2);color:var(--fg);text-align:right}
+.terms{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.terms{grid-template-columns:1fr}}
+.terms label{font-weight:500;font-size:13px;display:block;margin-bottom:4px}
+textarea{width:100%;min-height:118px;font-family:var(--font-mono);font-size:12.5px;padding:8px;border:1px solid var(--line);border-radius:5px;background:var(--surface-2);color:var(--fg);resize:vertical}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.check input{margin-top:3px;accent-color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.summary{grid-template-columns:minmax(0,1fr)}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.tile .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tile .val{font-family:var(--font-display);font-size:34px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.tile.bad{border-left:4px solid var(--bad)} .tile.bad .val{color:var(--bad)}
+.tile.ok{border-left:4px solid var(--ok)} .tile.ok .val{color:var(--ok)}
+.bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.reasons{display:flex;flex-direction:column;gap:8px}
+.reason{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) 70px;gap:12px;align-items:center;font-size:13px;background:none;border:0;padding:4px 6px;border-radius:5px;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
+.reason:hover{background:var(--surface-2)}
+.reason.on{background:var(--accent-soft)}
+.reason .track{height:10px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.reason .track i{display:block;height:100%;background:var(--bad);border-radius:3px}
+.reason .c{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+@media (max-width:520px){.reason{grid-template-columns:minmax(0,1fr) 60px}.reason .track{grid-column:1/-1;order:3}}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.tab{font:inherit;font-weight:600;padding:7px 14px;border:0;background:var(--surface);color:var(--muted);cursor:pointer}
+.tab[aria-selected=true]{background:var(--fg);color:var(--bg)}
+.search{flex:1 1 220px;max-width:360px;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px}
+th{position:sticky;top:0;background:var(--surface-2);text-align:left;font-weight:600;font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--font-mono);white-space:nowrap}
+td.sku{font-family:var(--font-mono);font-weight:600;white-space:nowrap}
+td.desc{max-width:420px}
+.over{color:var(--bad);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--bad-soft);color:var(--bad);white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+details.vols summary{cursor:pointer;color:var(--accent);font-size:12px}
+.vlist{font-family:var(--font-mono);font-size:12px;margin-top:4px;display:grid;gap:2px}
+.more{display:flex;justify-content:center;padding:12px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:500;z-index:20;max-width:calc(100% - 32px)}
+.copyfall{width:100%;min-height:80px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1><small>Restrições de transportadora</small>Validador de SKUs · JADLOG</h1>
+    <div class="actions">
+      <button class="btn primary" id="btnCopy" disabled>Copiar SKUs não aptos</button>
+      <button class="btn" id="btnCopyCsv" disabled>Copiar separados por vírgula</button>
+      <button class="btn" id="btnXlsx" disabled>Baixar Excel</button>
+    </div>
+  </header>
+
+  <div class="grid-top">
+    <section class="panel" aria-labelledby="hBase">
+      <h2 id="hBase">Base de itens</h2>
+      <label class="drop" id="drop" for="file">
+        <span class="ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg></span>
+        <span class="txt"><strong>Enviar planilha de cadastro (.xlsx)</strong><span class="muted">Arraste o arquivo aqui ou clique para escolher. O processamento acontece no seu navegador.</span></span>
+        <span class="btn">Escolher arquivo</span>
+      </label>
+      <input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+      <div class="status" id="status"><span><span class="dot"></span><b>Carregando base inicial…</b></span></div>
+      <div class="colmap" aria-label="Colunas lidas da planilha">
+        <span>SKU comercial <b>C</b></span><span>Descrição <b>D</b></span><span>Qtde embalagem <b>H</b></span><span>Peso bruto <b>J</b></span><span>Volume A×L×P <b>X Y Z</b></span>
+      </div>
+      <p class="muted" style="margin:0;font-size:12.5px">Cada linha da planilha é um volume. As linhas com o mesmo código modelo formam um SKU. Se qualquer volume falhar, o SKU inteiro fica não apto.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="hRules">
+      <h2 id="hRules">Regras JADLOG</h2>
+      <div class="rules">
+        <div class="rule"><span class="n">R1</span><label for="rPeso">Peso bruto do SKU<span class="hint">Aceita até o limite (≤)</span></label><span class="inp"><input type="number" id="rPeso" value="24" step="0.1" min="0"> kg</span></div>
+        <div class="rule"><span class="n">R2</span><label for="rLado">Maior lado de cada volume<span class="hint">Recusa se for igual ou maior (≥)</span></label><span class="inp"><input type="number" id="rLado" value="1700" step="1" min="0"> mm</span></div>
+        <div class="rule"><span class="n">R3</span><label for="rSoma">Soma A + L + P de cada volume<span class="hint">Recusa se passar do limite (&gt;)</span></label><span class="inp"><input type="number" id="rSoma" value="2400" step="1" min="0"> mm</span></div>
+        <div class="rule"><span class="n">R4</span><span><b style="font-weight:500">Tipo de produto</b><span class="hint">Termo na descrição (coluna D). Ignora acentos e aceita plural.</span></span><span></span></div>
+      </div>
+      <div class="terms">
+        <div><label for="rTermos">Termos bloqueados (um por linha)</label><textarea id="rTermos" spellcheck="false"></textarea></div>
+        <div><label for="rExc">Exceções que anulam o termo</label><textarea id="rExc" spellcheck="false" placeholder="Ex.: SEM CUBA&#10;S/ CUBA&#10;P/ COOKTOP"></textarea></div>
+      </div>
+      <label class="check"><input type="checkbox" id="rZero" checked><span>Considerar não apto quando o peso ou alguma dimensão de volume estiver zerada ou vazia no cadastro</span></label>
+      <div><button class="btn" id="btnReset" type="button">Restaurar regras padrão</button></div>
+    </section>
+  </div>
+
+  <section class="summary" aria-label="Resumo">
+    <div class="tile"><span class="lbl">SKUs analisados</span><span class="val" id="tTotal">–</span><span class="muted num" id="tVols">–</span></div>
+    <div class="tile bad"><span class="lbl">Não aptos JADLOG</span><span class="val" id="tBad">–</span><span class="muted num" id="tBadPct">–</span></div>
+    <div class="tile ok"><span class="lbl">Aptos JADLOG</span><span class="val" id="tOk">–</span><span class="muted num" id="tOkPct">–</span></div>
+  </section>
+
+  <section class="panel" aria-labelledby="hReasons">
+    <div class="toolbar"><h2 id="hReasons">Motivos de recusa</h2><span class="muted" style="font-size:12.5px">Um SKU pode ter mais de um motivo. Clique para filtrar a lista.</span></div>
+    <div class="reasons" id="reasons"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="hList">
+    <div class="toolbar">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <h2 id="hList">SKUs</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tabBad" aria-selected="true">Não aptos</button>
+          <button class="tab" role="tab" id="tabOk" aria-selected="false">Aptos</button>
+        </div>
+      </div>
+      <input class="search" id="q" type="search" placeholder="Buscar SKU ou descrição…" aria-label="Buscar SKU ou descrição">
+    </div>
+    <div class="muted" id="listInfo" style="font-size:12.5px"></div>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>SKU comercial</th><th>Descrição</th><th class="r">Peso bruto</th><th class="r">Vols</th><th class="r">Maior lado</th><th class="r">Maior soma</th><th>Motivos</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>Nenhum SKU nesta visão.</div>
+    </div>
+    <div class="more" id="moreBox" hidden><button class="btn" id="btnMore">Mostrar mais 200</button></div>
+    <textarea class="copyfall" id="copyFallback" hidden readonly aria-label="Lista para copiar"></textarea>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+const DEF = {peso:24, lado:1700, soma:2400, zero:true,
+  termos:["PIA","COLCHAO","COLCHOES","CADEIRA","COOKTOP","COOK TOP","CUBA","FORNO ELETRICO","SOFA"], exc:[]};
+const REASONS = [
+  {k:"PESO", label:"Peso acima do limite"},
+  {k:"LADO", label:"Lado de volume no limite ou acima"},
+  {k:"SOMA", label:"Soma A+L+P acima do limite"},
+  {k:"TERMO", label:"Tipo de produto restrito"},
+  {k:"DADOS", label:"Cadastro com peso/dimensão zerada"}
+];
+const $ = id => document.getElementById(id);
+const fmtInt = n => n.toLocaleString("pt-BR");
+const fmtKg = n => isFinite(n) ? n.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:2}) : "–";
+const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function num(v){
+  if (typeof v === "number") return v;
+  let s = String(v ?? "").trim(); if (!s) return NaN;
+  if (s.includes(",")) s = s.replace(/\./g,"").replace(",",".");
+  const n = parseFloat(s); return isFinite(n) ? n : NaN;
+}
+
+let base = null;      // {arquivo, data, skus:[{sku,desc,peso,qtd,vols:[[a,l,p]]}], nVols}
+let results = [];     // [{s, reasons:Set, terms:[], maxLado, maxSoma, badVol:[idx], warn}]
+let view = {tab:"bad", reason:null, q:"", limit:200};
+
+/* ---------- regras ---------- */
+function readRules(){
+  const lines = id => $(id).value.split(/\n|;/).map(t=>norm(t).trim()).filter(Boolean);
+  return {peso:num($("rPeso").value), lado:num($("rLado").value), soma:num($("rSoma").value),
+    zero:$("rZero").checked, termos:lines("rTermos"), exc:lines("rExc")};
+}
+function writeRules(r){
+  $("rPeso").value=r.peso; $("rLado").value=r.lado; $("rSoma").value=r.soma; $("rZero").checked=r.zero;
+  $("rTermos").value=r.termos.join("\n"); $("rExc").value=r.exc.join("\n");
+}
+function saveRules(){ try{ localStorage.setItem("jadlog-rules", JSON.stringify(readRules())); }catch(e){} }
+function loadRules(){ try{ const r = JSON.parse(localStorage.getItem("jadlog-rules")); if (r && Array.isArray(r.termos)) return Object.assign({},DEF,r); }catch(e){} return DEF; }
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function termRe(t){ return new RegExp("(?:^|[^A-Z0-9])(" + reEsc(t).replace(/\s+/g,"[\\s\\-/]*") + ")(?:S|ES)?(?=[^A-Z0-9]|$)"); }
+
+function evaluate(){
+  if (!base) return;
+  const r = readRules();
+  const terms = r.termos.map(t=>({t, re:termRe(t)}));
+  results = base.skus.map(s=>{
+    const reasons = new Set(); let maxLado=0, maxSoma=0; const badVol=[]; let zero = !(s.peso>0);
+    s.vols.forEach((v,i)=>{
+      const [a,l,p] = v; if (!(a>0 && l>0 && p>0)) zero = true;
+      const mx = Math.max(a||0,l||0,p||0), sm=(a||0)+(l||0)+(p||0);
+      if (mx>maxLado) maxLado=mx; if (sm>maxSoma) maxSoma=sm;
+      let bad=false;
+      if (mx >= r.lado){ reasons.add("LADO"); bad=true; }
+      if (sm > r.soma){ reasons.add("SOMA"); bad=true; }
+      if (bad) badVol.push(i);
+    });
+    if (s.peso > r.peso) reasons.add("PESO");
+    if (zero && r.zero) reasons.add("DADOS");
+    let d = " " + norm(s.desc) + " ";
+    for (const e of r.exc) d = d.split(e).join(" ");
+    const hit = terms.filter(x=>x.re.test(d)).map(x=>x.t);
+    if (hit.length) reasons.add("TERMO");
+    const warn = isFinite(s.qtd) && s.qtd !== s.vols.length;
+    return {s, reasons, terms:hit, maxLado, maxSoma, badVol, warn, zero};
+  });
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  const bad = results.filter(x=>x.reasons.size), ok = results.length - bad.length, tot = results.length || 1;
+  $("tTotal").textContent = fmtInt(results.length);
+  $("tVols").textContent = fmtInt(base.nVols) + " volumes (linhas)";
+  $("tBad").textContent = fmtInt(bad.length);
+  $("tBadPct").textContent = (bad.length/tot*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "% da base";
+  $("tOk").textContent = fmtInt(ok);
+  $("tOkPct").textContent = (ok/tot*100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "% da base";
+  const r = readRules();
+  const lbl = {PESO:`Peso bruto > ${fmtKg(r.peso)} kg`, LADO:`Lado ≥ ${fmtInt(r.lado)} mm`, SOMA:`A+L+P > ${fmtInt(r.soma)} mm`, TERMO:"Tipo de produto restrito", DADOS:"Peso/dimensão zerada"};
+  const max = Math.max(1, ...REASONS.map(x=>bad.filter(b=>b.reasons.has(x.k)).length));
+  $("reasons").innerHTML = REASONS.map(x=>{
+    const c = bad.filter(b=>b.reasons.has(x.k)).length;
+    return `<button class="reason${view.reason===x.k?" on":""}" data-k="${x.k}" aria-pressed="${view.reason===x.k}"><span>${esc(lbl[x.k])}</span><span class="track"><i style="width:${c/max*100}%"></i></span><span class="c">${fmtInt(c)}</span></button>`;
+  }).join("");
+  ["btnCopy","btnCopyCsv","btnXlsx"].forEach(id=>$(id).disabled = !bad.length && !ok);
+  renderTable(r);
+}
+function currentRows(){
+  const q = norm(view.q).trim();
+  return results.filter(x=>{
+    if (view.tab==="bad" ? !x.reasons.size : x.reasons.size) return false;
+    if (view.reason && !x.reasons.has(view.reason)) return false;
+    if (q && !norm(x.s.sku).includes(q) && !norm(x.s.desc).includes(q)) return false;
+    return true;
+  });
+}
+function chipsFor(x, r){
+  const out=[];
+  if (x.reasons.has("PESO")) out.push(`<span class="chip">Peso &gt; ${fmtKg(r.peso)} kg</span>`);
+  if (x.reasons.has("LADO")) out.push(`<span class="chip">Lado ≥ ${fmtInt(r.lado)}</span>`);
+  if (x.reasons.has("SOMA")) out.push(`<span class="chip">Soma &gt; ${fmtInt(r.soma)}</span>`);
+  if (x.reasons.has("TERMO")) out.push(`<span class="chip">Termo: ${esc(x.terms.join(", "))}</span>`);
+  if (x.reasons.has("DADOS")) out.push(`<span class="chip warn">Peso/dimensão zerada</span>`);
+  if (x.warn) out.push(`<span class="chip warn">${x.s.vols.length} de ${x.s.qtd} volumes na base</span>`);
+  if (!x.reasons.size && !x.warn) out.push(`<span class="chip ok">Apto</span>`);
+  return out.join("");
+}
+function renderTable(r){
+  const rows = currentRows();
+  const shown = rows.slice(0, view.limit);
+  $("listInfo").textContent = `${fmtInt(rows.length)} SKUs nesta visão` + (rows.length>shown.length ? ` · mostrando ${fmtInt(shown.length)}` : "") + (view.reason ? " · filtro de motivo ativo (clique de novo para remover)" : "");
+  $("tbody").innerHTML = shown.map(x=>{
+    const s=x.s;
+    const vols = s.vols.length>1 || x.badVol.length ? `<details class="vols"><summary>${s.vols.length} vol.${x.badVol.length?` · ${x.badVol.length} fora`:""}</summary><div class="vlist">${s.vols.map((v,i)=>`<span class="${x.badVol.includes(i)?"over":""}">V${String(i+1).padStart(2,"0")} ${v.map(n=>isFinite(n)?fmtInt(n):"–").join(" × ")} mm</span>`).join("")}</div></details>` : "";
+    return `<tr><td class="sku">${esc(s.sku)}</td><td class="desc">${esc(s.desc)}${vols}</td>
+      <td class="r ${x.reasons.has("PESO")?"over":""}">${fmtKg(s.peso)} kg</td>
+      <td class="r">${fmtInt(s.vols.length)}</td>
+      <td class="r ${x.maxLado>=r.lado?"over":""}">${fmtInt(x.maxLado)}</td>
+      <td class="r ${x.maxSoma>r.soma?"over":""}">${fmtInt(x.maxSoma)}</td>
+      <td><div class="chips">${chipsFor(x,r)}</div></td></tr>`;
+  }).join("");
+  $("empty").hidden = rows.length>0;
+  $("moreBox").hidden = rows.length<=shown.length;
+}
+
+/* ---------- leitura da planilha ---------- */
+function setStatus(kind, html){ const el=$("status"); el.className="status "+kind; el.innerHTML=`<span><span class="dot"></span>${html}</span>`; }
+function baseStatus(){
+  setStatus("", `<b>${esc(base.arquivo)}</b></span><span>${fmtInt(base.skus.length)} SKUs · ${fmtInt(base.nVols)} volumes</span><span class="muted">${esc(base.data)}`);
+}
+function parseWorkbook(buf, name){
+  const wb = XLSX.read(buf, {type:"array", cellFormula:false, cellHTML:false, cellStyles:false});
+  let ws = null, rows = null, h = -1;
+  const order = [...wb.SheetNames].sort((a,b)=>(norm(b)==="CADASTRO")-(norm(a)==="CADASTRO"));
+  for (const sn of order){
+    const rr = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:true, defval:null, blankrows:false});
+    const idx = rr.slice(0,30).findIndex(row => row && norm(row[2]).includes("CODIGO MODELO"));
+    if (idx>=0 && (rr[idx]||[]).length >= 26){ ws=sn; rows=rr; h=idx; break; }
+  }
+  if (!rows) throw new Error("Não encontrei a aba de cadastro. A planilha precisa ter o cabeçalho “Código Modelo” na coluna C e as dimensões dos volumes nas colunas X, Y e Z.");
+  const map = new Map(); let nVols = 0;
+  for (let i=h+1;i<rows.length;i++){
+    const row = rows[i]; if (!row) continue;
+    const sku = String(row[2] ?? "").trim(); if (!sku) continue;
+    let s = map.get(sku);
+    if (!s){ s = {sku, desc:String(row[3] ?? "").trim(), peso:num(row[9]), qtd:num(row[7]), vols:[]}; map.set(sku,s); }
+    s.vols.push([num(row[23]), num(row[24]), num(row[25])]); nVols++;
+  }
+  if (!map.size) throw new Error("A aba “"+ws+"” não tem linhas com código modelo preenchido.");
+  const now = new Date();
+  return {arquivo:name, data:"Enviada em " + now.toLocaleDateString("pt-BR") + " " + now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}), skus:[...map.values()], nVols};
+}
+function handleFile(f){
+  if (!f) return;
+  if (typeof XLSX === "undefined"){ setStatus("error","<b>A biblioteca de leitura de Excel não carregou.</b> Recarregue a página e tente de novo."); return; }
+  setStatus("loading", `<b>Lendo ${esc(f.name)}…</b>`);
+  const fr = new FileReader();
+  fr.onerror = ()=>setStatus("error","<b>Não consegui ler o arquivo.</b> Verifique se ele não está aberto em outro programa.");
+  fr.onload = ()=>setTimeout(()=>{
+    try{ base = parseWorkbook(new Uint8Array(fr.result), f.name); view.limit=200; baseStatus(); evaluate(); toast("Base atualizada: " + fmtInt(base.skus.length) + " SKUs"); }
+    catch(e){ setStatus("error", "<b>" + esc(e.message || "Erro ao processar a planilha.") + "</b>"); }
+  }, 30);
+  fr.readAsArrayBuffer(f);
+}
+async function loadInitial(){
+  try{
+    const res = await fetch("base-inicial.json"); if (!res.ok) throw 0;
+    const j = await res.json();
+    const skus = j.skus.map(a=>({sku:a[0], desc:a[1], peso:a[2]==null?NaN:a[2], qtd:a[3], vols:a[4].map(v=>v.map(n=>n==null?NaN:n))}));
+    base = {arquivo:j.arquivo, data:"Base de 23/11/2026", skus, nVols:skus.reduce((t,s)=>t+s.vols.length,0)};
+    baseStatus(); evaluate();
+  }catch(e){ setStatus("loading","<b>Nenhuma base carregada.</b> Envie a planilha de cadastro para começar."); $("empty").hidden=false; }
+}
+
+/* ---------- saída ---------- */
+let toastT;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2600); }
+function badList(){ return results.filter(x=>x.reasons.size); }
+function copyText(text, n){
+  const fb = ()=>{ const ta=$("copyFallback"); ta.value=text; ta.hidden=false; ta.focus(); ta.select(); toast("Seleção pronta: use Ctrl+C para copiar"); };
+  try{ navigator.clipboard.writeText(text).then(()=>{ $("copyFallback").hidden=true; toast(fmtInt(n)+" SKUs copiados"); }, fb); }catch(e){ fb(); }
+}
+$("btnCopy").onclick = ()=>{ const l=badList(); copyText(l.map(x=>x.s.sku).join("\n"), l.length); };
+$("btnCopyCsv").onclick = ()=>{ const l=badList(); copyText(l.map(x=>x.s.sku).join(","), l.length); };
+function motivoTxt(x, r){
+  const m=[];
+  if (x.reasons.has("PESO")) m.push(`Peso > ${r.peso} kg`);
+  if (x.reasons.has("LADO")) m.push(`Lado >= ${r.lado} mm`);
+  if (x.reasons.has("SOMA")) m.push(`Soma A+L+P > ${r.soma} mm`);
+  if (x.reasons.has("TERMO")) m.push("Termo: " + x.terms.join(", "));
+  if (x.reasons.has("DADOS")) m.push("Peso/dimensão zerada");
+  return m.join(" | ");
+}
+$("btnXlsx").onclick = async ()=>{
+  const r = readRules();
+  const dl = window.claude && await window.claude.use("downloads").catch(()=>null);
+  const bad = badList(), ok = results.filter(x=>!x.reasons.size);
+  const head = ["SKU Comercial (Código Modelo)","Descrição","Peso Bruto (kg)","Qtde Volumes","Maior lado (mm)","Maior soma A+L+P (mm)","Motivos","Volumes fora do padrão"];
+  const sheetBad = [head, ...bad.map(x=>[x.s.sku,x.s.desc,x.s.peso,x.s.vols.length,x.maxLado,x.maxSoma,motivoTxt(x,r),
+    x.badVol.map(i=>"V"+String(i+1).padStart(2,"0")+" "+x.s.vols[i].join("x")).join("; ")])];
+  const sheetOk = [head.slice(0,6), ...ok.map(x=>[x.s.sku,x.s.desc,x.s.peso,x.s.vols.length,x.maxLado,x.maxSoma])];
+  const sheetRules = [["Regra","Valor"],["Peso bruto máximo (kg, aceita igual)",r.peso],["Lado de volume: recusa se ≥ (mm)",r.lado],["Soma A+L+P máxima (mm, aceita igual)",r.soma],["Termos bloqueados",r.termos.join(", ")],["Exceções",r.exc.join(", ")],["Zerado = não apto",r.zero?"Sim":"Não"],["Base",base.arquivo],["Gerado em",new Date().toLocaleString("pt-BR")]];
+  const wb = XLSX.utils.book_new();
+  const add=(rows,name,w)=>{ const ws=XLSX.utils.aoa_to_sheet(rows); ws["!cols"]=w.map(n=>({wch:n})); ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:rows[0].length-1}})}; XLSX.utils.book_append_sheet(wb,ws,name); };
+  add(sheetBad,"Nao Aptos JADLOG",[24,70,14,12,14,18,50,40]);
+  add(sheetOk,"Aptos JADLOG",[24,70,14,12,14,18]);
+  add(sheetRules,"Regras",[40,60]);
+  const data = XLSX.write(wb,{type:"array",bookType:"xlsx"});
+  const d = new Date(), stamp = String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear();
+  const filename = `SKUS_NAO_APTOS_JADLOG_${stamp}.xlsx`;
+  if (!dl){ toast("Download indisponível nesta visualização. Use “Copiar SKUs não aptos”."); return; }
+  try{ await dl.save({filename, data:new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})}); toast("Arquivo salvo: "+filename); }
+  catch(e){ if (e && e.code==="declined") return; toast(e && e.code==="rate_limited" ? "Aguarde um instante e tente de novo." : "Não foi possível salvar o arquivo aqui. Use “Copiar SKUs não aptos”."); }
+};
+
+/* ---------- eventos ---------- */
+$("file").addEventListener("change", e=>{ handleFile(e.target.files[0]); e.target.value=""; });
+const drop=$("drop");
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop", e=>handleFile(e.dataTransfer.files[0]));
+let deb;
+["rPeso","rLado","rSoma","rTermos","rExc","rZero"].forEach(id=>$(id).addEventListener("input",()=>{ clearTimeout(deb); deb=setTimeout(()=>{ saveRules(); evaluate(); },300); }));
+$("btnReset").onclick=()=>{ writeRules(DEF); saveRules(); evaluate(); toast("Regras padrão restauradas"); };
+$("reasons").addEventListener("click", e=>{ const b=e.target.closest(".reason"); if(!b) return; view.reason = view.reason===b.dataset.k ? null : b.dataset.k; view.tab="bad"; view.limit=200; syncTabs(); render(); });
+function syncTabs(){ $("tabBad").setAttribute("aria-selected", view.tab==="bad"); $("tabOk").setAttribute("aria-selected", view.tab==="ok"); }
+$("tabBad").onclick=()=>{ view.tab="bad"; view.limit=200; syncTabs(); if(base) render(); };
+$("tabOk").onclick=()=>{ view.tab="ok"; view.reason=null; view.limit=200; syncTabs(); if(base) render(); };
+$("q").addEventListener("input", e=>{ view.q=e.target.value; view.limit=200; clearTimeout(deb); deb=setTimeout(()=>base&&renderTable(readRules()),200); });
+$("btnMore").onclick=()=>{ view.limit+=200; renderTable(readRules()); };
+
+writeRules(loadRules());
+loadInitial();
+})();
+</script>
