@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { BaseJadlog } from './jadlog'
 import type { Analise, Faixa, NovaProposta, Proposta } from './types'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -166,6 +167,58 @@ export async function excluirAnalise(id: string) {
   }
   const { error } = await supabase.from('analises').delete().eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+// ---------- Base de SKUs da validação JADLOG ----------
+
+/** Última base de cadastro enviada, compartilhada por toda a equipe. */
+export async function ultimaBaseJadlog(): Promise<BaseJadlog | null> {
+  if (!supabase) return lerLocal<BaseJadlog | null>('demo_jadlog_base', null)
+  const { data: cab, error } = await supabase
+    .from('jadlog_bases')
+    .select('id, arquivo, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!cab) return null
+  const { data: lotes, error: e } = await supabase.from('jadlog_base_lotes').select('skus').eq('base_id', cab.id).order('parte')
+  if (e) throw new Error(e.message)
+  // Cada SKU é gravado como [sku, desc, peso, qtd, vols]; JSON não guarda NaN, então vazio volta como null.
+  const n = (v: number | null) => (v === null ? NaN : v)
+  const skus = (lotes ?? []).flatMap((l) =>
+    (l.skus as [string, string, number | null, number | null, (number | null)[][]][]).map(([sku, desc, peso, qtd, vols]) => ({
+      sku,
+      desc,
+      peso: n(peso),
+      qtd: n(qtd),
+      vols: vols.map((v) => v.map(n) as [number, number, number]),
+    })),
+  )
+  return { arquivo: cab.arquivo, enviada_em: cab.created_at, skus }
+}
+
+export async function salvarBaseJadlog(base: BaseJadlog) {
+  if (!supabase) return gravarLocal('demo_jadlog_base', base)
+  const { data, error } = await supabase
+    .from('jadlog_bases')
+    .insert({
+      arquivo: base.arquivo,
+      total_skus: base.skus.length,
+      total_volumes: base.skus.reduce((t, s) => t + s.vols.length, 0),
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+  // Grava em lotes para não passar do limite de tamanho de cada requisição.
+  for (let i = 0, parte = 0; i < base.skus.length; i += 2000, parte++) {
+    const skus = base.skus.slice(i, i + 2000).map((s) => [s.sku, s.desc, s.peso, s.qtd, s.vols])
+    const { error: e } = await supabase.from('jadlog_base_lotes').insert({ base_id: data.id, parte, skus })
+    if (e) {
+      await supabase.from('jadlog_bases').delete().eq('id', data.id)
+      throw new Error(e.message)
+    }
+  }
 }
 
 // ---------- Armazenamento local (modo demonstração) ----------

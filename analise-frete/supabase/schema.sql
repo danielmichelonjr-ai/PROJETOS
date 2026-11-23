@@ -53,3 +53,34 @@ drop policy if exists "equipe" on public.proposta_faixas;
 create policy "equipe" on public.proposta_faixas for all to authenticated using (true) with check (true);
 drop policy if exists "equipe" on public.analises;
 create policy "equipe" on public.analises for all to authenticated using (true) with check (true);
+
+-- Projetos novos do Supabase não concedem acesso às tabelas automaticamente.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.propostas, public.proposta_faixas, public.analises to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- Validação de SKUs JADLOG: guarda as bases de cadastro enviadas (a mais recente é a usada).
+create table if not exists public.jadlog_bases (
+  id uuid primary key default gen_random_uuid(),
+  arquivo text not null,
+  total_skus integer,
+  total_volumes integer,
+  created_by uuid default auth.uid() references auth.users (id),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.jadlog_base_lotes (
+  id bigint generated always as identity primary key,
+  base_id uuid not null references public.jadlog_bases (id) on delete cascade,
+  parte integer not null,
+  skus jsonb not null
+);
+create index if not exists jadlog_base_lotes_base_idx on public.jadlog_base_lotes (base_id);
+
+alter table public.jadlog_bases enable row level security;
+alter table public.jadlog_base_lotes enable row level security;
+drop policy if exists "equipe" on public.jadlog_bases;
+create policy "equipe" on public.jadlog_bases for all to authenticated using (true) with check (true);
+drop policy if exists "equipe" on public.jadlog_base_lotes;
+create policy "equipe" on public.jadlog_base_lotes for all to authenticated using (true) with check (true);
+grant select, insert, update, delete on public.jadlog_bases, public.jadlog_base_lotes to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
