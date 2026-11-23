@@ -8,6 +8,9 @@ Aplicação web com login para:
 2. **Importar propostas · Intelipost**: lê a planilha da transportadora (.xlsx ou .csv, uma faixa por
    linha ou faixas de peso em colunas), mapeia as colunas para o modelo padrão, salva no histórico e
    gera a planilha no modelo Intelipost.
+3. **Validação SKU's Jadlog**: lê a planilha de cadastro de produtos e aponta os SKUs que não podem
+   ir pela JADLOG (peso, maior lado, soma A+L+P, tipo de produto e cadastro zerado), com regras
+   editáveis, filtros, cópia da lista e exportação em Excel. A última base enviada fica salva para a equipe.
 
 Tecnologia: React + Vite (front-end), Supabase (login e banco de dados), Vercel (hospedagem e link).
 

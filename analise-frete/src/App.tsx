@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 import AbaCompetitividade from './components/AbaCompetitividade'
 import AbaImportacao from './components/AbaImportacao'
+import AbaJadlog from './components/AbaJadlog'
 import Login from './components/Login'
 import { aoMudarSessao, definirSenha, modoDemo, sair, usuarioAtual, type Usuario } from './lib/dados'
 
-type Aba = 'competitividade' | 'importacao'
+type Aba = 'competitividade' | 'importacao' | 'jadlog'
+
+const MENU: { id: Aba; rotulo: string }[] = [
+  { id: 'competitividade', rotulo: 'Competitividade de frete' },
+  { id: 'importacao', rotulo: 'Importar propostas · Intelipost' },
+  { id: 'jadlog', rotulo: "Validação SKU's Jadlog" },
+]
 
 export default function App() {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
@@ -36,14 +43,6 @@ export default function App() {
       )}
       <header className="topo">
         <img src="/logo-multimoveis.png" alt="Multimóveis 30 anos" />
-        <nav className="abas">
-          <button className={`aba ${aba === 'competitividade' ? 'ativa' : ''}`} onClick={() => setAba('competitividade')}>
-            Competitividade de frete
-          </button>
-          <button className={`aba ${aba === 'importacao' ? 'ativa' : ''}`} onClick={() => setAba('importacao')}>
-            Importar propostas · Intelipost
-          </button>
-        </nav>
         <div className="usuario">
           {usuario.email}
           <button
@@ -57,7 +56,20 @@ export default function App() {
           </button>
         </div>
       </header>
-      <main>{aba === 'competitividade' ? <AbaCompetitividade irParaImportacao={() => setAba('importacao')} /> : <AbaImportacao />}</main>
+      <div className="layout">
+        <nav className="menu" aria-label="Menu principal">
+          {MENU.map((m) => (
+            <button key={m.id} className={`menu-item ${aba === m.id ? 'ativo' : ''}`} onClick={() => setAba(m.id)}>
+              {m.rotulo}
+            </button>
+          ))}
+        </nav>
+        <main>
+          {aba === 'competitividade' && <AbaCompetitividade irParaImportacao={() => setAba('importacao')} />}
+          {aba === 'importacao' && <AbaImportacao />}
+          {aba === 'jadlog' && <AbaJadlog />}
+        </main>
+      </div>
     </>
   )
 }

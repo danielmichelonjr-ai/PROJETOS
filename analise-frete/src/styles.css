@@ -30,21 +30,28 @@ a { color: var(--amarelo); }
   background: var(--fundo); position: sticky; top: 0; z-index: 10;
 }
 .topo img { height: 52px; }
-.abas { display: flex; gap: 4px; flex: 1; }
-.aba {
-  background: none; border: none; color: var(--texto-suave); font: inherit;
-  padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 500;
-}
-.aba:hover { color: var(--texto); background: var(--superficie); }
-.aba.ativa { color: #222; background: var(--amarelo); }
-.usuario { display: flex; align-items: center; gap: 10px; color: var(--texto-suave); font-size: 0.88rem; }
+.usuario { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--texto-suave); font-size: 0.88rem; }
 
 .faixa-demo {
   background: #3a3218; color: var(--amarelo); text-align: center;
   padding: 6px 12px; font-size: 0.85rem;
 }
 
-main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+/* ---------- Menu lateral ---------- */
+.layout { display: flex; align-items: flex-start; }
+.menu {
+  width: 240px; flex: none; position: sticky; top: 78px; align-self: flex-start;
+  display: flex; flex-direction: column; gap: 4px; padding: 20px 12px;
+  min-height: calc(100vh - 78px); border-right: 1px solid var(--borda);
+}
+.menu-item {
+  background: none; border: none; color: var(--texto-suave); font: inherit; text-align: left;
+  padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 500;
+}
+.menu-item:hover { color: var(--texto); background: var(--superficie); }
+.menu-item.ativo { color: #222; background: var(--amarelo); font-weight: 600; }
+
+main { flex: 1; min-width: 0; max-width: 1280px; margin: 0 auto; padding: 24px; }
 
 /* ---------- Componentes ---------- */
 .card {
@@ -113,9 +120,43 @@ td.vazio { color: #666; }
 .login img { width: 100%; margin-bottom: 18px; }
 .login form { display: flex; flex-direction: column; gap: 12px; }
 
+/* ---------- Validação JADLOG ---------- */
+.soltar {
+  display: flex; flex-direction: column; gap: 4px; padding: 20px; cursor: pointer;
+  border: 2px dashed var(--borda); border-radius: var(--raio); background: var(--fundo);
+}
+.soltar:hover { border-color: var(--amarelo); }
+.etiqueta { font-size: 0.8rem; color: var(--texto-suave); background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 4px; padding: 2px 7px; }
+.etiqueta b { color: var(--texto); font-family: monospace; }
+.regra { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--borda); }
+.motivo {
+  display: grid; grid-template-columns: minmax(150px, 220px) 1fr 70px; gap: 12px; align-items: center; width: 100%;
+  background: none; border: none; color: var(--texto); font: inherit; text-align: left; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+}
+.motivo:hover { background: var(--superficie-2); }
+.motivo.ativo { background: #3a3218; }
+.motivo .num { text-align: right; font-variant-numeric: tabular-nums; }
+.barra.vermelha > div { background: var(--vermelho); }
+.alternar { display: inline-flex; border: 1px solid var(--borda); border-radius: 7px; overflow: hidden; }
+.alternar button { background: var(--superficie); color: var(--texto-suave); border: none; font: inherit; font-weight: 600; padding: 6px 14px; cursor: pointer; }
+.alternar button.ativo { background: var(--amarelo); color: #222; }
+.chip { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #3a1c1a; color: var(--vermelho); white-space: nowrap; }
+.chip.ok { background: #16301f; color: var(--verde); }
+.chip.alerta { background: #3a3218; color: var(--amarelo); }
+td.fora, .fora { color: var(--vermelho); font-weight: 600; }
+details.vols summary { cursor: pointer; color: var(--amarelo); font-size: 0.8rem; margin-top: 4px; }
+details.vols div { font-family: monospace; font-size: 0.8rem; }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20;
+  background: var(--amarelo); color: #222; padding: 10px 16px; border-radius: 8px; font-weight: 600;
+}
+textarea { width: 100%; resize: vertical; font-family: monospace; font-size: 0.85rem; }
+
 @media (max-width: 760px) {
   .topo { flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
   .topo img { height: 34px; }
-  .abas { order: 3; width: 100%; }
+  .layout { flex-direction: column; }
+  .menu { width: 100%; min-height: 0; position: static; flex-direction: row; overflow-x: auto; padding: 8px 16px; border-right: 0; border-bottom: 1px solid var(--borda); }
+  .menu-item { white-space: nowrap; }
   main { padding: 16px; }
 }
