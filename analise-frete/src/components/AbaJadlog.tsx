@@ -5,7 +5,6 @@ import {
   MOTIVOS,
   REGRAS_PADRAO,
   avaliar,
-  lerBase,
   normalizar,
   rotuloMotivo,
   textoMotivos,
@@ -14,7 +13,27 @@ import {
   type RegrasJadlog,
   type ResultadoSku,
 } from '../lib/jadlog'
-import { baixarXlsx, lerArquivo } from '../lib/planilha'
+import { baixarXlsx } from '../lib/planilha'
+
+/** Lê a planilha num Web Worker para não travar a página com bases grandes. */
+function lerBaseEmSegundoPlano(arquivo: File): Promise<BaseJadlog> {
+  return arquivo.arrayBuffer().then(
+    (buffer) =>
+      new Promise((ok, falha) => {
+        const w = new Worker(new URL('../lib/jadlog.worker.ts', import.meta.url), { type: 'module' })
+        w.onmessage = (e: MessageEvent<{ base?: BaseJadlog; erro?: string }>) => {
+          w.terminate()
+          if (e.data.base) ok(e.data.base)
+          else falha(new Error(e.data.erro))
+        }
+        w.onerror = (e) => {
+          w.terminate()
+          falha(new Error(e.message || 'Não consegui ler o arquivo.'))
+        }
+        w.postMessage({ buffer, nome: arquivo.name }, [buffer])
+      }),
+  )
+}
 
 const CHAVE_REGRAS = 'jadlog-regras'
 const PAGINA = 200
@@ -84,7 +103,7 @@ export default function AbaJadlog() {
     if (!arquivo) return
     setStatus({ tipo: 'carregando', texto: `Lendo ${arquivo.name}…` })
     try {
-      const nova = lerBase(await lerArquivo(arquivo), arquivo.name)
+      const nova = await lerBaseEmSegundoPlano(arquivo)
       setBase(nova)
       setLimite(PAGINA)
       setStatus({ tipo: 'carregando', texto: 'Salvando base para a equipe…' })

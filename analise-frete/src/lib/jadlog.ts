@@ -1,4 +1,4 @@
-import { numero, type Aba, type Celula } from './planilha'
+import { numero, type Celula } from './planilha'
 
 // Validação de SKUs contra as restrições de coleta da JADLOG.
 // Cada linha da planilha de cadastro é um volume; linhas com o mesmo código
@@ -66,28 +66,18 @@ const COL = { sku: 2, desc: 3, qtd: 7, peso: 9, a: 23, l: 24, p: 25 } // C, D, H
 
 const num = (v: Celula | undefined) => (v === null || v === undefined || v === '' ? NaN : numero(v))
 
-export function lerBase(abas: Aba[], arquivo: string): BaseJadlog {
-  // Prefere a aba "CADASTRO"; aceita qualquer aba com "Código Modelo" na coluna C.
-  const ordem = [...abas].sort((a, b) => Number(normalizar(b.nome) === 'CADASTRO') - Number(normalizar(a.nome) === 'CADASTRO'))
-  let linhas: Celula[][] | null = null
-  let cab = -1
-  let nomeAba = ''
-  for (const aba of ordem) {
-    const i = aba.linhas.slice(0, 30).findIndex((l) => normalizar(l?.[COL.sku]).includes('CODIGO MODELO'))
-    if (i >= 0) {
-      linhas = aba.linhas
-      cab = i
-      nomeAba = aba.nome
-      break
-    }
-  }
-  if (!linhas) {
-    throw new Error(
-      'Não encontrei a aba de cadastro. A planilha precisa ter o cabeçalho “Código Modelo” na coluna C e as dimensões dos volumes nas colunas X, Y e Z.',
-    )
-  }
+/** Índice da linha de cabeçalho ("Código Modelo" na coluna C) nas 30 primeiras linhas, ou -1. */
+export function acharCabecalho(linhas: Celula[][]): number {
+  return linhas.slice(0, 30).findIndex((l) => normalizar(l?.[COL.sku]).includes('CODIGO MODELO'))
+}
+
+export const ERRO_SEM_CADASTRO =
+  'Não encontrei a aba de cadastro. A planilha precisa ter o cabeçalho “Código Modelo” na coluna C e as dimensões dos volumes nas colunas X, Y e Z.'
+
+export function montarBase(linhas: Celula[][], cab: number, arquivo: string, nomeAba: string): BaseJadlog {
   const mapa = new Map<string, SkuJadlog>()
-  for (const l of linhas.slice(cab + 1)) {
+  for (let i = cab + 1; i < linhas.length; i++) {
+    const l = linhas[i]
     const sku = String(l?.[COL.sku] ?? '').trim()
     if (!sku) continue
     let s = mapa.get(sku)
@@ -100,6 +90,10 @@ export function lerBase(abas: Aba[], arquivo: string): BaseJadlog {
   if (!mapa.size) throw new Error(`A aba “${nomeAba}” não tem linhas com código modelo preenchido.`)
   return { arquivo, enviada_em: new Date().toISOString(), skus: [...mapa.values()] }
 }
+
+/** Ordem de busca das abas: "CADASTRO" primeiro. */
+export const ordenarAbas = (nomes: string[]) =>
+  [...nomes].sort((a, b) => Number(normalizar(b) === 'CADASTRO') - Number(normalizar(a) === 'CADASTRO'))
 
 export function avaliar(base: BaseJadlog, r: RegrasJadlog): ResultadoSku[] {
   const termos = r.termos.map((t) => ({ t, re: regexTermo(t) }))
