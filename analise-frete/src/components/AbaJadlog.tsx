@@ -101,7 +101,7 @@ export default function AbaJadlog() {
 
   async function enviar(arquivo: File | undefined) {
     if (!arquivo) return
-    setStatus({ tipo: 'carregando', texto: `Lendo ${arquivo.name}…` })
+    setStatus({ tipo: 'carregando', texto: `Processando ${arquivo.name} em segundo plano… bases grandes levam alguns segundos.` })
     try {
       const nova = await lerBaseEmSegundoPlano(arquivo)
       setBase(nova)
