@@ -1,0 +1,104 @@
+<div class="page">
+  <header>
+    <h1>Cotação x Faturamento por Origem</h1>
+    <p class="sub" id="periodo"></p>
+  </header>
+
+  <section class="tiles" id="kpis" aria-label="Indicadores"></section>
+
+  <section class="sec" id="evolucao">
+    <h2>Evolução diária de pedidos</h2>
+    <p class="desc">Pedidos por dia de pagamento, divididos pela origem de faturamento (série da NF). O último dia é parcial e aparece mais claro. Passe o mouse ou toque nas barras para ver o detalhe.</p>
+    <div class="legend" id="legenda"></div>
+    <div class="chart" id="ch-dia" style="min-height:300px"></div>
+    <p class="desc">Por origem: clique num cartão para abrir essa origem na árvore abaixo.</p>
+    <div class="minis" id="minis"></div>
+  </section>
+
+  <section class="sec" id="arvore">
+    <h2>Origem › Transportadora que cotou › Transportadora que faturou</h2>
+    <p class="desc"><b>Nível 1:</b> origem, definida pela série da NF (a série aparece ao lado). <b>Nível 2:</b> transportadora da cotação (coluna R). <b>Nível 3:</b> transportadora que de fato faturou, do ERP (coluna O). Clique em ▸/▾ para abrir ou fechar e em qualquer linha para ver a evolução diária dela no gráfico abaixo e filtrar a lista de pedidos no fim da página. "Faturou com outra" conta os pedidos faturados por uma transportadora diferente da cotada (em laranja quando passa de 20%).</p>
+    <div class="tools">
+      <label class="sub" for="f-origem">Origem</label>
+      <select class="sel" id="f-origem"></select>
+      <input class="inp" id="f-busca" type="search" placeholder="Buscar transportadora (cotação ou ERP)" aria-label="Buscar transportadora">
+      <button type="button" class="btn" id="b-n1">Só origens</button>
+      <button type="button" class="btn" id="b-n2">Abrir cotações</button>
+      <button type="button" class="btn" id="b-n3">Abrir tudo</button>
+    </div>
+    <div class="detail" id="detalhe">
+      <div class="path" id="det-path"></div>
+      <div class="chart" id="ch-det" style="min-height:200px"></div>
+    </div>
+    <div class="wrap"><table class="tree" id="tabela"></table></div>
+  </section>
+
+  <section class="sec" id="cotada-faturada">
+    <h2>Cotada x Faturada, por transportadora</h2>
+    <p class="desc">Só pedidos já faturados. À esquerda, quantos pedidos cada transportadora cotou; à direita, quantos cada transportadora efetivamente faturou no ERP. Abaixo, os pedidos que saíram por uma transportadora diferente da cotada.</p>
+    <div class="tools">
+      <label class="sub" for="f-cmp">Origem</label>
+      <select class="sel" id="f-cmp"></select>
+    </div>
+    <div class="cmp">
+      <div><h3>Transportadora que cotou (coluna R)</h3><div class="bars" id="bars-cot"></div></div>
+      <div><h3>Transportadora que faturou (ERP, coluna O)</h3><div class="bars" id="bars-erp"></div></div>
+    </div>
+    <h3 style="font-size:13px;margin:8px 0 0">Faturados com transportadora diferente da cotada <span class="sub" id="pares-tot"></span></h3>
+    <div class="wrap" style="max-height:420px"><table class="tree" id="pares"></table></div>
+  </section>
+
+  <section class="sec" id="sp-fora">
+    <h2>Cotado por transportadora da Filial SP, faturado por outra origem</h2>
+    <p class="desc">Pedidos cotados por uma das transportadoras da Filial SP (lista no rodapé) e faturados por outra origem: Matriz, Filial RJ, MG, PE, CBM FLOG, Dropshipping ou Drop. Aut., conforme a série da NF.</p>
+    <div class="tiles" id="spf-kpis"></div>
+    <h3 style="font-size:13px;margin:6px 0 0">Transportadora cotada (Filial SP) × origem que faturou</h3>
+    <div class="wrap" style="max-height:none"><table class="tree" id="spf-matriz"></table></div>
+    <h3 style="font-size:13px;margin:6px 0 0">Evolução diária dos pedidos faturados fora da Filial SP</h3>
+    <div class="legend" id="spf-leg"></div>
+    <div class="chart" id="spf-dia" style="min-height:240px"></div>
+    <h3 style="font-size:13px;margin:6px 0 0">Detalhe: Origem que faturou › Transportadora que cotou › Transportadora que faturou (ERP)</h3>
+    <div class="tools">
+      <button type="button" class="btn" id="spf-b1">Só origens</button>
+      <button type="button" class="btn" id="spf-b2">Abrir cotações</button>
+      <button type="button" class="btn" id="spf-b3">Abrir tudo</button>
+    </div>
+    <div class="wrap"><table class="tree" id="spf-arvore"></table></div>
+  </section>
+
+  <section class="sec" id="pedidos">
+    <h2>Pedidos</h2>
+    <p class="desc">Todos os pedidos do período (sem cancelados). Clique nos quadros acima (linhas das tabelas, cartões das origens, barras dos dias, barras de cotada x faturada) para filtrar esta lista, ou use os filtros abaixo. Clique no título de uma coluna para ordenar. Passe o mouse sobre a cidade para ver o CEP.</p>
+    <div class="ctxbar" id="ped-ctx" hidden><span>Filtro vindo dos quadros acima:</span><b id="ped-ctx-txt"></b><button type="button" class="btn" id="ped-ctx-x">Limpar este filtro</button></div>
+    <div class="pfil">
+      <label for="pf-origem">Origem<select class="sel" id="pf-origem"></select></label>
+      <label for="pf-nf">NF<input class="inp" id="pf-nf" type="search" placeholder="Nº da nota"></label>
+      <label for="pf-canal">Canal<select class="sel" id="pf-canal"></select></label>
+      <label for="pf-cidade">Cidade<input class="inp" id="pf-cidade" type="search" list="pf-cidades" placeholder="Digite a cidade"></label>
+      <label for="pf-uf">Estado<select class="sel" id="pf-uf"></select></label>
+      <label for="pf-cot">Transportadora cotada<select class="sel" id="pf-cot"></select></label>
+      <label for="pf-erp">Transportadora faturada<select class="sel" id="pf-erp"></select></label>
+      <button type="button" class="btn" id="pf-limpar">Limpar filtros</button>
+    </div>
+    <datalist id="pf-cidades"></datalist>
+    <div class="ped-res" id="ped-res"></div>
+    <div class="wrap" style="max-height:640px"><table class="ped" id="ped-tab"></table></div>
+    <div class="pager"><button type="button" class="btn" id="pg-ant">◀ Anterior</button><span id="pg-txt"></span><button type="button" class="btn" id="pg-prox">Próxima ▶</button></div>
+  </section>
+  <button type="button" class="goped" id="ped-go" hidden></button>
+
+  <details class="notes">
+    <summary>Como os números foram calculados</summary>
+    <ul>
+      <li>Fonte: planilha <span id="nota-fonte"></span> (aba Export), 1 linha por pedido (PEDIDO HUB). O dia é a data de DATA PAGAMENTO.</li>
+      <li>Origem pela série da NF (coluna D): 25 = Filial SP, ou Filial RJ quando a entrega é no RJ; 24 = Filial MG; 34 = Filial SP; 7 e 31 = Matriz; 14 = Filial PE; 302 = CBM FLOG; 35 = Dropshipping; 36 = Dropshipping Automático (Drop. Aut.). Sem NF ("-") = Fat. Pendente.</li>
+      <li>Transportadora que cotou: coluna R (TRANSPORTADOR COTAÇÃO). Transportadora que faturou: coluna O (TRANSPORTADOR ERP). Pedidos ainda sem NF aparecem como "Ainda não faturado" no nível 3.</li>
+      <li>Mesma transportadora com nome diferente no ERP: Jadlog = Ldc Cargas; Transvanio = 44.657.205 Marcia Lira De Andrade Campos; Transvanio - Matriz = Silvanio Silva De Campos; Tsl = Lls Transportes; Transiga = Via Cargas; Trans Sua Log = J S De Oliveira; Transportadora Blz = Transportes Blz. Nesses casos o ERP aparece como "Nome (nome do cadastro)".</li>
+      <li>Tempo Justo tem duas operações com o mesmo nome no ERP. A série da NF decide: séries 7 e 31 (Matriz) = "Tempo Justo Matriz"; demais séries = operação "Vm Transportes".</li>
+      <li>"Faturou com outra": o pedido foi faturado por uma transportadora diferente da cotada, comparando a cotação com o ERP (com as equivalências acima). São diferentes, por exemplo: Reunidas x Aceville, Passaro x Formato, Transito Brasil x Transportes Blz, Tsl x Prolog, Transvanio x Zelog, Transiga x J S De Oliveira.</li>
+      <li>Transportadoras de cotação da Filial SP (informadas por você): Transvanio, Zelog Standard, Vm Transportes, Dominalog Filial Sp, Tsl Filial Sp, Formato Transportes Standard, Idh Transportes, Tradicional Log, Atual Cargas Filial Sp, Transiga Filial Sp, Trans Sua Log - Standard, Flog Filial Sp, Passaro Transportes, Petrymar Ms - Filial Sp e Petrymar Mt - Filial Sp.</li>
+      <li>Pedidos com status Cancelado não entram na contagem. Médias usam só os dias completos.</li>
+    </ul>
+  </details>
+  <p class="foot" id="rodape"></p>
+</div>

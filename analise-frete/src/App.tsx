@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import AbaCompetitividade from './components/AbaCompetitividade'
 import AbaImportacao from './components/AbaImportacao'
 import AbaJadlog from './components/AbaJadlog'
 import Login from './components/Login'
 import { aoMudarSessao, definirSenha, modoDemo, sair, usuarioAtual, type Usuario } from './lib/dados'
 
-type Aba = 'competitividade' | 'importacao' | 'jadlog'
+// Carregada só quando aberta: traz o d3 (gráficos), que pesa no primeiro acesso.
+const AbaCotacao = lazy(() => import('./components/AbaCotacao'))
+
+type Aba = 'competitividade' | 'importacao' | 'jadlog' | 'cotacao'
 
 const MENU: { id: Aba; rotulo: string }[] = [
   { id: 'competitividade', rotulo: 'Competitividade de frete' },
   { id: 'importacao', rotulo: 'Importar propostas · Intelipost' },
   { id: 'jadlog', rotulo: "Validação SKU's Jadlog" },
+  { id: 'cotacao', rotulo: 'Cotação x Faturamento' },
 ]
 
 export default function App() {
@@ -68,6 +72,11 @@ export default function App() {
           {aba === 'competitividade' && <AbaCompetitividade irParaImportacao={() => setAba('importacao')} />}
           {aba === 'importacao' && <AbaImportacao />}
           {aba === 'jadlog' && <AbaJadlog />}
+          {aba === 'cotacao' && (
+            <Suspense fallback={<p className="suave">Carregando…</p>}>
+              <AbaCotacao email={usuario.email} />
+            </Suspense>
+          )}
         </main>
       </div>
     </>

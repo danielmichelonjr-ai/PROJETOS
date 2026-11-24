@@ -11,6 +11,12 @@ Aplicação web com login para:
 3. **Validação SKU's Jadlog**: lê a planilha de cadastro de produtos e aponta os SKUs que não podem
    ir pela JADLOG (peso, maior lado, soma A+L+P, tipo de produto e cadastro zerado), com regras
    editáveis, filtros, cópia da lista e exportação em Excel. A última base enviada fica salva para a equipe.
+4. **Cotação x Faturamento**: lê a exportação de pedidos (aba Export) e compara a transportadora que cotou
+   (TRANSPORTADOR COTAÇÃO) com a que faturou no ERP, por origem (série da NF): evolução diária, árvore
+   origem › cotou › faturou, cotada x faturada, pedidos da Filial SP faturados por outra origem e lista de
+   pedidos com filtros. A última base enviada fica salva para a equipe e o relatório pode ser baixado como
+   um arquivo HTML único. As regras (séries, equivalências de nomes no ERP) ficam em
+   [`src/lib/cotacao.ts`](src/lib/cotacao.ts).
 
 Tecnologia: React + Vite (front-end), Supabase (login e banco de dados), Vercel (hospedagem e link).
 
