@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { BaseCotacao } from './cotacao'
 import type { BaseJadlog } from './jadlog'
 import type { Analise, Faixa, NovaProposta, Proposta } from './types'
 
@@ -219,6 +220,57 @@ export async function salvarBaseJadlog(base: BaseJadlog) {
       throw new Error(e.message)
     }
   }
+}
+
+// ---------- Base de pedidos da Cotação x Faturamento ----------
+
+export interface InfoBaseCotacao {
+  arquivo: string
+  enviada_em: string
+  enviada_por: string | null
+}
+
+/** Última base de pedidos enviada, compartilhada por toda a equipe. */
+export async function ultimaBaseCotacao(): Promise<{ base: BaseCotacao; info: InfoBaseCotacao } | null> {
+  if (!supabase) return lerLocal<{ base: BaseCotacao; info: InfoBaseCotacao } | null>('demo_cotacao_base', null)
+  const { data: cab, error } = await supabase
+    .from('cotacao_bases')
+    .select('id, arquivo, meta, dic, enviado_por, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!cab) return null
+  const { data: lotes, error: e } = await supabase.from('cotacao_base_lotes').select('pedidos').eq('base_id', cab.id).order('parte')
+  if (e) throw new Error(e.message)
+  return {
+    base: { meta: cab.meta, dic: cab.dic, pedidos: (lotes ?? []).flatMap((l) => l.pedidos) },
+    info: { arquivo: cab.arquivo, enviada_em: cab.created_at, enviada_por: cab.enviado_por },
+  }
+}
+
+/** Grava a base nova e apaga as anteriores (o relatório usa só a mais recente). */
+export async function salvarBaseCotacao(base: BaseCotacao, email: string) {
+  const { meta, dic, pedidos } = base
+  if (!supabase) {
+    gravarLocal('demo_cotacao_base', { base: { meta, dic, pedidos }, info: { arquivo: meta.fonte, enviada_em: new Date().toISOString(), enviada_por: email } })
+    return
+  }
+  const { data, error } = await supabase
+    .from('cotacao_bases')
+    .insert({ arquivo: meta.fonte, total_pedidos: meta.pedidos, cancelados: meta.cancelados, meta, dic, enviado_por: email || null })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+  // Grava em lotes para não passar do limite de tamanho de cada requisição.
+  for (let i = 0, parte = 0; i < pedidos.length; i += 5000, parte++) {
+    const { error: e } = await supabase.from('cotacao_base_lotes').insert({ base_id: data.id, parte, pedidos: pedidos.slice(i, i + 5000) })
+    if (e) {
+      await supabase.from('cotacao_bases').delete().eq('id', data.id)
+      throw new Error(e.message)
+    }
+  }
+  await supabase.from('cotacao_bases').delete().neq('id', data.id)
 }
 
 // ---------- Armazenamento local (modo demonstração) ----------
