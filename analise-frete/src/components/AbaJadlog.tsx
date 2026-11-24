@@ -14,6 +14,7 @@ import {
   type ResultadoSku,
 } from '../lib/jadlog'
 import { baixarXlsx } from '../lib/planilha'
+import ConsultaJadlog from './ConsultaJadlog'
 
 /** Lê a planilha num Web Worker para não travar a página com bases grandes. */
 function lerBaseEmSegundoPlano(arquivo: File): Promise<BaseJadlog> {
@@ -303,6 +304,8 @@ export default function AbaJadlog() {
           </button>
         </div>
       </div>
+
+      {base && <ConsultaJadlog resultados={resultados} regras={regras} />}
 
       {base && (
         <>
