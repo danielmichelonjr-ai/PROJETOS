@@ -29,7 +29,13 @@ export interface ParametrosIntelipost {
   cepOrigemInicial: string
   cepOrigemFinal: string
   nomeTabela: string
+  /** GRIS mínimo em R$ por CT-e: vai na coluna GRIS MÍNIMO de todas as linhas. */
+  grisMinimo: string
 }
+
+/** Origem padrão da Multimóveis: todo o Brasil. */
+export const CEP_ORIGEM_INICIAL = '01000000'
+export const CEP_ORIGEM_FINAL = '99999999'
 
 export const PARAMETROS_VAZIOS: ParametrosIntelipost = {
   icms: '',
@@ -39,9 +45,10 @@ export const PARAMETROS_VAZIOS: ParametrosIntelipost = {
   largura: '',
   comprimento: '',
   somaDimensoes: '',
-  cepOrigemInicial: '',
-  cepOrigemFinal: '',
+  cepOrigemInicial: CEP_ORIGEM_INICIAL,
+  cepOrigemFinal: CEP_ORIGEM_FINAL,
   nomeTabela: '',
+  grisMinimo: '',
 }
 
 const CHAVE_PARAMS = 'intelipost-parametros'
@@ -50,7 +57,7 @@ const CHAVE_PARAMS = 'intelipost-parametros'
 export function parametrosLembrados(): ParametrosIntelipost {
   try {
     const p = JSON.parse(localStorage.getItem(CHAVE_PARAMS) ?? 'null')
-    if (p) return { ...PARAMETROS_VAZIOS, icms: p.icms ?? '', cepOrigemInicial: p.cepOrigemInicial ?? '', cepOrigemFinal: p.cepOrigemFinal ?? '' }
+    if (p) return { ...PARAMETROS_VAZIOS, icms: p.icms ?? '', cepOrigemInicial: p.cepOrigemInicial || CEP_ORIGEM_INICIAL, cepOrigemFinal: p.cepOrigemFinal || CEP_ORIGEM_FINAL }
   } catch {
     // Sem armazenamento: começa vazio.
   }
@@ -63,6 +70,14 @@ export function lembrarParametros(p: ParametrosIntelipost) {
   } catch {
     // Ignora: vale só nesta sessão.
   }
+}
+
+/** "2,00" ou "2.00" em número; vazio vira null. */
+export function valorBr(s: string): number | null {
+  const t = String(s ?? '').trim()
+  if (!t) return null
+  const v = Number(/,/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t)
+  return Number.isFinite(v) && v > 0 ? v : null
 }
 
 /** Valores dos parâmetros na ordem de PARAMETROS (rótulos da coluna A). */
@@ -88,13 +103,14 @@ export interface LinhaIntelipost {
   gris: number | null
   tas: number | null
   pedagio: number | null
+  grisMinimo: number | null
 }
 
 const ou = (n: number) => (n ? n : null)
 const ABERTO = 999999
 
 /** Agrupa as faixas (CEP × peso) em linhas do modelo: uma por faixa de CEP, com o frete de cada peso em colunas. */
-export function montarTabelaIntelipost(faixas: Faixa[]): { pesos: number[]; linhas: LinhaIntelipost[] } {
+export function montarTabelaIntelipost(faixas: Faixa[], grisMinimo: number | null = null): { pesos: number[]; linhas: LinhaIntelipost[] } {
   const limites = [...new Set(faixas.map((f) => f.peso_final).filter((p) => p > 0))].sort((a, b) => a - b)
   const pesos = limites.some((p) => p < ABERTO) ? limites.filter((p) => p < ABERTO) : limites
   const grupos = new Map<string, Faixa[]>()
@@ -125,6 +141,7 @@ export function montarTabelaIntelipost(faixas: Faixa[]): { pesos: number[]; linh
         gris: ou(f.gris_pct),
         tas: ou(f.taxa_fixa),
         pedagio: ou(f.pedagio),
+        grisMinimo,
       })
   }
   linhas.sort((a, b) => a.cepi - b.cepi)
@@ -135,6 +152,7 @@ export function montarTabelaIntelipost(faixas: Faixa[]): { pesos: number[]; linh
 const VALOR_FIM: Record<string, (l: LinhaIntelipost) => Celula> = {
   'VALOR EXCEDENTE': (l) => l.excedente,
   'FRETE VALOR (%)': (l) => l.adValorem,
+  'GRIS MÍNIMO': (l) => l.grisMinimo,
   'GRIS (%)': (l) => l.gris,
   'TAS FIXO': (l) => l.tas,
   'PEDÁGIO FIXO': (l) => l.pedagio,
@@ -142,8 +160,8 @@ const VALOR_FIM: Record<string, (l: LinhaIntelipost) => Celula> = {
 }
 
 /** Colunas mostradas na prévia da tela (as que o sistema preenche). */
-export function previaIntelipost(faixas: Faixa[], limite = 100): { cabecalho: string[]; linhas: Celula[][]; total: number } {
-  const { pesos, linhas } = montarTabelaIntelipost(faixas)
+export function previaIntelipost(faixas: Faixa[], grisMinimo: number | null = null, limite = 100): { cabecalho: string[]; linhas: Celula[][]; total: number } {
+  const { pesos, linhas } = montarTabelaIntelipost(faixas, grisMinimo)
   const fim = Object.keys(VALOR_FIM)
   return {
     cabecalho: ['UF', 'CIDADE', 'CEPI', 'CEPF', 'PRAZO', 'VALOR MÍNIMO DO FRETE', ...pesos.map((p) => `${p} kg`), ...fim],
@@ -157,7 +175,7 @@ const BRL = '"R$" #,##0.00'
 
 export async function exportarIntelipost(proposta: Pick<Proposta, 'transportadora' | 'nome'>, faixas: Faixa[], params: ParametrosIntelipost = parametrosLembrados()) {
   const { default: Excel } = await import('exceljs')
-  const { pesos, linhas } = montarTabelaIntelipost(faixas)
+  const { pesos, linhas } = montarTabelaIntelipost(faixas, valorBr(params.grisMinimo))
   const wb = new Excel.Workbook()
   const ws = wb.addWorksheet('Planilha1')
   const borda = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } } as const
@@ -173,7 +191,7 @@ export async function exportarIntelipost(proposta: Pick<Proposta, 'transportador
   const cols: Col[] = [
     ...COLUNAS_INICIO.map(([t, c, n, w, ce], i) => ({ titulo: t, cor: COR[c], nota: n, largura: w, centro: !!ce, brl: false, valor: inicio[i] })),
     ...pesos.map((p, i) => ({ titulo: p, cor: COR.E, nota: NOTA_FAIXA_PESO, largura: LARGURA_PESO, centro: true, brl: true, valor: (l: LinhaIntelipost) => l.porPeso[i] })),
-    ...COLUNAS_FIM.map(([t, c, n, w, ce]) => ({ titulo: t, cor: COR[c], nota: n, largura: w, centro: !!ce, brl: t === 'VALOR EXCEDENTE', valor: VALOR_FIM[t] ?? (() => null) })),
+    ...COLUNAS_FIM.map(([t, c, n, w, ce]) => ({ titulo: t, cor: COR[c], nota: n, largura: w, centro: !!ce, brl: t === 'VALOR EXCEDENTE' || t === 'GRIS MÍNIMO', valor: VALOR_FIM[t] ?? (() => null) })),
   ]
   ws.getColumn(1).width = LARGURA_A
   ws.getColumn(2).width = LARGURA_B
@@ -272,5 +290,7 @@ export function parametrosDoTexto(linhas: string[]): Partial<ParametrosIntelipos
   else if (/com icms|icms incluso|icms inclu[ií]do/i.test(t)) p.icms = 'S'
   const cub = t.match(/(\d{2,3})\s*kg\s*\/?\s*m(?:³|3)/i)
   if (cub) p.cubagem = cub[1]
+  const gm = t.match(/GRIS[^.]*?(?:\.[^.]*?)?m[ií]nimo (?:de )?R\$\s*(\d+(?:[.,]\d{1,2})?)/i)
+  if (gm) p.grisMinimo = gm[1]
   return p
 }

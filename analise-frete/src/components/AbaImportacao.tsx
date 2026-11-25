@@ -14,7 +14,7 @@ import {
 import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarProposta } from '../lib/dados'
 import { propostasExemplo } from '../lib/exemplo'
 import { data, num } from '../lib/formato'
-import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, type ParametrosIntelipost } from '../lib/intelipost'
+import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, valorBr, type ParametrosIntelipost } from '../lib/intelipost'
 import { lerPdf, observacoesDoTexto, taxasDoTexto } from '../lib/pdf'
 import { detectarCabecalho, lerArquivo, numero, type Celula } from '../lib/planilha'
 import type { Proposta } from '../lib/types'
@@ -96,7 +96,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
   const [params, setParams] = useState<ParametrosIntelipost>(parametrosLembrados)
   const mudarParam = (k: keyof ParametrosIntelipost, v: string) => setParams((p) => ({ ...p, [k]: v }))
   // PRAZO é obrigatório na Intelipost; quando a proposta não informa, vale o prazo padrão digitado.
-  const [prazoPadrao, setPrazoPadrao] = useState('')
+  const [prazoPadrao, setPrazoPadrao] = useState('2')
   // O que a proposta informa (ICMS, cubagem) entra nos parâmetros da tabela Intelipost.
   useEffect(() => {
     const doTexto = parametrosDoTexto(textoPdf)
@@ -525,7 +525,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                   {a}
                 </div>
               ))}
-              <PreviaIntelipost faixas={final.faixas} />
+              <PreviaIntelipost faixas={final.faixas} grisMinimo={valorBr(params.grisMinimo)} />
               <h3 style={{ marginTop: 22 }}>Dados da tabela Intelipost</h3>
               <p className="suave">Vão na coluna A do modelo oficial. ICMS e CEP de origem são obrigatórios e ficam lembrados para as próximas propostas.</p>
               <div className="grade" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}>
@@ -547,6 +547,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                   [
                     ['cepOrigemInicial', 'CEP origem inicial', 'Ex.: 89000000'],
                     ['cepOrigemFinal', 'CEP origem final', 'Ex.: 89999999'],
+                    ['grisMinimo', 'GRIS mínimo (R$)', 'Ex.: 2,00'],
                     ['cubagem', 'Cubagem (kg/m³)', 'Ex.: 300'],
                     ['isencaoCubagem', 'Isenção de cubagem (kg)', 'Opcional'],
                     ['altura', 'Limite de altura (cm)', 'Opcional'],
@@ -680,8 +681,8 @@ function colunaLetra(i: number): string {
 }
 
 /** Prévia das primeiras linhas como sairão na planilha Intelipost (uma linha por faixa de CEP, pesos em colunas). */
-function PreviaIntelipost({ faixas }: { faixas: Parameters<typeof previaIntelipost>[0] }) {
-  const p = useMemo(() => previaIntelipost(faixas), [faixas])
+function PreviaIntelipost({ faixas, grisMinimo }: { faixas: Parameters<typeof previaIntelipost>[0]; grisMinimo: number | null }) {
+  const p = useMemo(() => previaIntelipost(faixas, grisMinimo), [faixas, grisMinimo])
   return (
     <>
       <div className="tabela-wrap" style={{ maxHeight: 340 }}>
