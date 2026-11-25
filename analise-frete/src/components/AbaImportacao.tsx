@@ -14,7 +14,7 @@ import {
 import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarProposta } from '../lib/dados'
 import { propostasExemplo } from '../lib/exemplo'
 import { data, num } from '../lib/formato'
-import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, valorBr, type ParametrosIntelipost } from '../lib/intelipost'
+import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, extrasDe, TAXA_TRANSFERENCIA_SP, type ExtrasIntelipost, type OrigemColeta, type ParametrosIntelipost } from '../lib/intelipost'
 import { lerPdf, observacoesDoTexto, taxasDoTexto } from '../lib/pdf'
 import { detectarCabecalho, lerArquivo, numero, type Celula } from '../lib/planilha'
 import type { Proposta } from '../lib/types'
@@ -525,7 +525,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                   {a}
                 </div>
               ))}
-              <PreviaIntelipost faixas={final.faixas} grisMinimo={valorBr(params.grisMinimo)} />
+              <PreviaIntelipost faixas={final.faixas} extras={extrasDe(params)} />
               <h3 style={{ marginTop: 22 }}>Dados da tabela Intelipost</h3>
               <p className="suave">Vão na coluna A do modelo oficial. ICMS e CEP de origem são obrigatórios e ficam lembrados para as próximas propostas.</p>
               <div className="grade" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}>
@@ -535,6 +535,13 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                     <input style={{ width: '100%', boxSizing: 'border-box' }} value={prazoPadrao} placeholder="A proposta não informa" inputMode="numeric" onChange={(e) => setPrazoPadrao(e.target.value.replace(/\D/g, ''))} />
                   </label>
                 )}
+                <label style={CAMPO}>
+                  Origem da coleta
+                  <select style={{ width: '100%', boxSizing: 'border-box' }} value={params.origemColeta} onChange={(e) => mudarParam('origemColeta', e.target.value as OrigemColeta)}>
+                    <option value="MATRIZ">Matriz</option>
+                    <option value="FILIAL SP">Filial SP (+ transferência R$ {TAXA_TRANSFERENCIA_SP.toFixed(2).replace('.', ',')}/kg)</option>
+                  </select>
+                </label>
                 <label style={CAMPO}>
                   ICMS já está calculado?
                   <select style={{ width: '100%', boxSizing: 'border-box' }} value={params.icms} onChange={(e) => mudarParam('icms', e.target.value)}>
@@ -681,8 +688,8 @@ function colunaLetra(i: number): string {
 }
 
 /** Prévia das primeiras linhas como sairão na planilha Intelipost (uma linha por faixa de CEP, pesos em colunas). */
-function PreviaIntelipost({ faixas, grisMinimo }: { faixas: Parameters<typeof previaIntelipost>[0]; grisMinimo: number | null }) {
-  const p = useMemo(() => previaIntelipost(faixas, grisMinimo), [faixas, grisMinimo])
+function PreviaIntelipost({ faixas, extras }: { faixas: Parameters<typeof previaIntelipost>[0]; extras: ExtrasIntelipost }) {
+  const p = useMemo(() => previaIntelipost(faixas, extras), [faixas, extras.grisMinimo, extras.outraTaxa])
   return (
     <>
       <div className="tabela-wrap" style={{ maxHeight: 340 }}>
