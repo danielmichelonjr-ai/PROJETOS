@@ -127,3 +127,30 @@ alter table public.cidades_bases enable row level security;
 drop policy if exists "equipe" on public.cidades_bases;
 create policy "equipe" on public.cidades_bases for all to authenticated using (true) with check (true);
 grant select, insert, update, delete on public.cidades_bases to authenticated;
+
+-- Competitividade de frete: base de pedidos (60–90 dias) usada para recotar pela tabela em análise. Só a mais recente é mantida.
+create table if not exists public.pedidos_bases (
+  id uuid primary key default gen_random_uuid(),
+  arquivo text not null,
+  total_pedidos integer,
+  meta jsonb not null,
+  dic jsonb not null,
+  enviado_por text,
+  created_by uuid default auth.uid() references auth.users (id),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.pedidos_base_lotes (
+  id bigint generated always as identity primary key,
+  base_id uuid not null references public.pedidos_bases (id) on delete cascade,
+  parte integer not null,
+  pedidos jsonb not null
+);
+create index if not exists pedidos_base_lotes_base_idx on public.pedidos_base_lotes (base_id);
+alter table public.pedidos_bases enable row level security;
+alter table public.pedidos_base_lotes enable row level security;
+drop policy if exists "equipe" on public.pedidos_bases;
+create policy "equipe" on public.pedidos_bases for all to authenticated using (true) with check (true);
+drop policy if exists "equipe" on public.pedidos_base_lotes;
+create policy "equipe" on public.pedidos_base_lotes for all to authenticated using (true) with check (true);
+grant select, insert, update, delete on public.pedidos_bases, public.pedidos_base_lotes to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
