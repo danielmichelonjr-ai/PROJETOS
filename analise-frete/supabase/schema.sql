@@ -113,3 +113,17 @@ drop policy if exists "equipe" on public.cotacao_base_lotes;
 create policy "equipe" on public.cotacao_base_lotes for all to authenticated using (true) with check (true);
 grant select, insert, update, delete on public.cotacao_bases, public.cotacao_base_lotes to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Base de cidades por faixa de CEP (nomes da coluna CIDADE na tabela Intelipost). Só a mais recente é mantida.
+create table if not exists public.cidades_bases (
+  id uuid primary key default gen_random_uuid(),
+  arquivo text not null,
+  linhas jsonb not null,
+  enviado_por text,
+  created_by uuid default auth.uid() references auth.users (id),
+  created_at timestamptz not null default now()
+);
+alter table public.cidades_bases enable row level security;
+drop policy if exists "equipe" on public.cidades_bases;
+create policy "equipe" on public.cidades_bases for all to authenticated using (true) with check (true);
+grant select, insert, update, delete on public.cidades_bases to authenticated;

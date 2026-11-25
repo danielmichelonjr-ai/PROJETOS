@@ -1,3 +1,4 @@
+import { baseCidades, corretorCidades, type CorretorCidade } from './cidades'
 import { faixasCepDaUf } from './cep'
 import type { Celula } from './planilha'
 import type { Faixa, Proposta } from './types'
@@ -47,6 +48,8 @@ export const TAXA_TRANSFERENCIA_SP = 0.45
 export interface ExtrasIntelipost {
   grisMinimo?: number | null
   outraTaxa?: number | null
+  /** Nome da cidade pela base de cidades por CEP. */
+  cidade?: CorretorCidade
 }
 
 export const extrasDe = (p: ParametrosIntelipost): ExtrasIntelipost => ({
@@ -149,7 +152,7 @@ export function montarTabelaIntelipost(faixas: Faixa[], extras: ExtrasIntelipost
     for (const [ci, cf] of ceps)
       linhas.push({
         uf: f.uf_destino,
-        cidade: f.cidade,
+        cidade: extras.cidade ? extras.cidade(f.uf_destino, f.cidade, Number(ci), Number(cf)) : f.cidade,
         cepi: Number(ci),
         cepf: Number(cf),
         prazo: ou(f.prazo_dias),
@@ -197,7 +200,7 @@ const BRL = '"R$" #,##0.00'
 
 export async function exportarIntelipost(proposta: Pick<Proposta, 'transportadora' | 'nome'>, faixas: Faixa[], params: ParametrosIntelipost = parametrosLembrados()) {
   const { default: Excel } = await import('exceljs')
-  const { pesos, linhas } = montarTabelaIntelipost(faixas, extrasDe(params))
+  const { pesos, linhas } = montarTabelaIntelipost(faixas, { ...extrasDe(params), cidade: corretorCidades((await baseCidades()).linhas) })
   const wb = new Excel.Workbook()
   const ws = wb.addWorksheet('Planilha1')
   const borda = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } } as const
