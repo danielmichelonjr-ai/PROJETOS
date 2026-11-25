@@ -82,24 +82,56 @@ function melhorAtual(c: PorCidade) {
   return (cand.length ? cand : c.transp).reduce((m, t) => (media(t.atual, t.n) < media(m.atual, m.n) ? t : m))
 }
 
+// O que foi carregado continua disponível ao trocar de aba e voltar: a base fica na memória da página
+// e a última tabela também fica guardada neste navegador.
+const CHAVE_TABELA = 'competitividade-ultima-tabela'
+const memoria: { base: BasePedidos | null; info: InfoBasePedidos | null; tabela: TabelaIntelipost | null; origem: string; de: string; ate: string } = {
+  base: null,
+  info: null,
+  tabela: lerTabelaGuardada(),
+  origem: '',
+  de: '',
+  ate: '',
+}
+function lerTabelaGuardada(): TabelaIntelipost | null {
+  try {
+    const t = JSON.parse(localStorage.getItem(CHAVE_TABELA) ?? 'null')
+    return t && Array.isArray(t.linhas) && Array.isArray(t.pesos) ? t : null
+  } catch {
+    return null
+  }
+}
+function guardarTabela(t: TabelaIntelipost) {
+  try {
+    localStorage.setItem(CHAVE_TABELA, JSON.stringify(t))
+  } catch {
+    // Tabela grande demais para o navegador: vale só enquanto a página estiver aberta.
+  }
+}
+
 export default function AbaCompetitividade({ irParaImportacao }: { irParaImportacao: () => void }) {
-  const [base, setBase] = useState<BasePedidos | null>(null)
-  const [info, setInfo] = useState<InfoBasePedidos | null>(null)
-  const [carregando, setCarregando] = useState(true)
+  const [base, setBase] = useState<BasePedidos | null>(memoria.base)
+  const [info, setInfo] = useState<InfoBasePedidos | null>(memoria.info)
+  const [carregando, setCarregando] = useState(!memoria.base)
   const [msgBase, setMsgBase] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const [tabela, setTabela] = useState<TabelaIntelipost | null>(null)
+  const [tabela, setTabela] = useState<TabelaIntelipost | null>(memoria.tabela)
   const [msgTabela, setMsgTabela] = useState('')
-  const [origem, setOrigem] = useState('')
+  const [origem, setOrigem] = useState(memoria.origem)
   const [ufOrigem, setUfOrigem] = useState('SP')
   const [icmsModo, setIcmsModo] = useState<'regra' | 'fixo'>('regra')
   const [icmsFixo, setIcmsFixo] = useState('12')
-  const [de, setDe] = useState('')
-  const [ate, setAte] = useState('')
+  const [de, setDe] = useState(memoria.de)
+  const [ate, setAte] = useState(memoria.ate)
   const [ufTop, setUfTop] = useState('')
   const [minPedidos, setMinPedidos] = useState('5')
 
   useEffect(() => {
+    Object.assign(memoria, { base, info, tabela, origem, de, ate })
+  }, [base, info, tabela, origem, de, ate])
+
+  useEffect(() => {
+    if (memoria.base) return
     ultimaBasePedidos()
       .then((r) => {
         if (r) setBase(r.base), setInfo(r.info)
@@ -110,9 +142,11 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
 
   // Período e origem padrão quando a base ou a tabela mudam.
   useEffect(() => {
-    if (!base) return
+    // Mantém o período escolhido ao voltar para a aba; base nova (ou período fora dela) volta para o período inteiro.
+    if (!base || (de && ate && de >= base.meta.primeiro && ate <= base.meta.ultimo)) return
     setDe(base.meta.primeiro)
     setAte(base.meta.ultimo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base])
   useEffect(() => {
     if (!base || !tabela) return
@@ -151,6 +185,8 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
       setMsgBase(`${num(b.meta.pedidos)} pedidos lidos. Gravando para a equipe…`)
       await salvarBasePedidos(b, email, (p) => setMsgBase(`${num(b.meta.pedidos)} pedidos lidos. Gravando para a equipe… ${Math.round(p * 100)}%`))
       setBase(b)
+      setDe(b.meta.primeiro)
+      setAte(b.meta.ultimo)
       setInfo({ arquivo: f.name, enviada_em: new Date().toISOString(), enviada_por: email || null })
       setMsgBase([`Base atualizada: ${num(b.meta.pedidos)} pedidos de ${data(b.meta.primeiro)} a ${data(b.meta.ultimo)}.`, ...(b.avisos ?? [])].join(' '))
     } catch (e) {
@@ -171,6 +207,7 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
         try {
           const t = lerTabelaIntelipost(a.linhas, f.name)
           setTabela(t)
+          guardarTabela(t)
           setOrigem('')
           setMsgTabela('')
           return
