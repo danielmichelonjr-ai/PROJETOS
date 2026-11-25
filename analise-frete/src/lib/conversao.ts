@@ -14,7 +14,7 @@ export interface DefCampo {
 // Sinônimos usados para sugerir automaticamente a coluna de origem.
 export const CAMPOS: DefCampo[] = [
   { campo: 'uf_destino', rotulo: 'UF destino', numerico: false, sinonimos: ['uf', 'estado', 'uf destino', 'destino uf'] },
-  { campo: 'cidade', rotulo: 'Cidade / Região', numerico: false, sinonimos: ['cidade', 'municipio', 'município', 'regiao', 'região', 'praca', 'praça', 'localidade'] },
+  { campo: 'cidade', rotulo: 'Cidade / Região', numerico: false, sinonimos: ['cidade', 'municipio', 'município', 'regiao', 'região', 'praca', 'praça', 'localidade', 'destino'] },
   { campo: 'cep_inicial', rotulo: 'CEP inicial', numerico: false, sinonimos: ['cep inicial', 'cep ini', 'cep de', 'cep inicio', 'faixa inicial', 'cep_inicial'] },
   { campo: 'cep_final', rotulo: 'CEP final', numerico: false, sinonimos: ['cep final', 'cep fim', 'cep ate', 'cep até', 'faixa final', 'cep_final'] },
   { campo: 'peso_inicial', rotulo: 'Peso inicial (kg)', numerico: true, sinonimos: ['peso inicial', 'peso de', 'peso min', 'peso mínimo', 'kg inicial'] },
@@ -68,7 +68,7 @@ export function sugerirMapeamento(cabecalho: Celula[]): Mapeamento {
 export function sugerirColunasPeso(cabecalho: Celula[]): number[] {
   return cabecalho
     .map((c, i) => ({ c: simplificar(c), i }))
-    .filter(({ c }) => /\d/.test(c) && /(kg|ate|a |^\d+$)/.test(c) && !/cep|prazo|dia/.test(c))
+    .filter(({ c }) => /\d/.test(c) && /(kg|ate|a |^\d+$)/.test(c) && !/cep|prazo|dia|excedente|adicional/.test(c))
     .map(({ i }) => i)
 }
 
@@ -91,6 +91,19 @@ function base(linha: Celula[], map: Mapeamento): Faixa {
   return faixa
 }
 
+/** Linha de cabeçalho: a que mais se parece com cabeçalho de proposta (campos conhecidos ou faixas de peso). */
+export function detectarCabecalhoProposta(linhas: Celula[][]): number {
+  const sins = CAMPOS.flatMap((d) => d.sinonimos.map(simplificar))
+  let melhor = -1
+  let pontos = 1
+  linhas.slice(0, 60).forEach((l, i) => {
+    const cab = (l ?? []).map(simplificar).filter((c) => c && c.length <= 60)
+    const p = cab.filter((c) => sins.some((s) => c === s || c.startsWith(s + ' '))).length + sugerirColunasPeso(l ?? []).length
+    if (p > pontos) (pontos = p), (melhor = i)
+  })
+  return melhor
+}
+
 export interface ResultadoConversao {
   faixas: Faixa[]
   avisos: string[]
@@ -111,7 +124,7 @@ export function converter(
   if (layout === 'linhas') {
     for (const l of dados) {
       const f = base(l, map)
-      if (!f.uf_destino && !f.cep_inicial) continue
+      if (!f.uf_destino && !f.cep_inicial && !f.cidade) continue
       if (!f.peso_final) f.peso_final = 999999
       faixas.push(f)
     }
@@ -123,7 +136,7 @@ export function converter(
     if (!pesos.length) avisos.push('Nenhuma coluna de peso selecionada.')
     for (const l of dados) {
       const b = base(l, map)
-      if (!b.uf_destino && !b.cep_inicial) continue
+      if (!b.uf_destino && !b.cep_inicial && !b.cidade) continue
       let anterior = 0
       for (const { i, peso } of pesos) {
         const valor = numero(l[i])

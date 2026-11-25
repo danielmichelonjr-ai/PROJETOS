@@ -5,9 +5,11 @@ Aplicação web com login para:
 1. **Competitividade de frete**: compara as propostas das transportadoras simulando envios
    (capitais × pesos, uma base real de pedidos em planilha, ou uma cotação única) e mostra ranking,
    custo médio por UF, detalhe por envio e histórico de análises.
-2. **Importar propostas · Intelipost**: lê a planilha da transportadora (.xlsx ou .csv, uma faixa por
-   linha ou faixas de peso em colunas), mapeia as colunas para o modelo padrão, salva no histórico e
-   gera a planilha no modelo Intelipost.
+2. **Importar propostas · Intelipost**: recebe todos os arquivos da proposta de uma vez (PDF, .xlsx ou
+   .csv). Monta as tabelas de preço do PDF pela posição do texto e acha no texto as taxas gerais (GRIS,
+   ad valorem, pedágio, taxas por CT-e). Quando os preços são por região (Capital, Interior…) e as faixas
+   de CEP vêm em outro arquivo, cruza cada grupo de CEP com a região escolhida. Depois mapeia as colunas
+   para o modelo padrão, salva no histórico e gera a planilha no modelo Intelipost.
 3. **Validação SKU's Jadlog**: lê a planilha de cadastro de produtos e aponta os SKUs que não podem
    ir pela JADLOG (peso, maior lado, soma A+L+P, tipo de produto e cadastro zerado), com regras
    editáveis, filtros, cópia da lista e exportação em Excel. A última base enviada fica salva para a equipe.
