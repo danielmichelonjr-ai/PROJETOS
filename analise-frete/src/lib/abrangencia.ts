@@ -68,7 +68,11 @@ function faixasDeColunas(linhas: Celula[][]): FaixaCep[] | null {
     const ci = cab.findIndex((c) => /cep.*(ini|de\b|inicio)|^de$|faixa ini/.test(c))
     const cf = cab.findIndex((c) => /cep.*(fim|final|ate)|^ate$|faixa fin/.test(c))
     if (ci < 0 || cf < 0) continue
-    const cg = cab.findIndex((c) => /regiao|praca|grupo|zona|cidade|municipio|localidade|tipo|classifica/.test(c))
+    // Região tarifária tem prioridade sobre colunas de cidade/zona quando as duas existem.
+    const cg = [/tarif/, /regiao|praca|classifica|tipo/, /grupo|zona/, /cidade|municipio|localidade/]
+      .map((re) => cab.findIndex((c) => re.test(c)))
+      .find((i) => i >= 0) ?? -1
+    const cc = cab.findIndex((c, i) => i !== cg && /cidade|municipio|localidade|bairro|praca/.test(c))
     const cu = cab.findIndex((c) => c === 'uf' || c === 'estado')
     const cp = cab.findIndex((c) => /prazo|dias|lead/.test(c))
     const out: FaixaCep[] = []
@@ -79,7 +83,7 @@ function faixasDeColunas(linhas: Celula[][]): FaixaCep[] | null {
       const grupo = cg >= 0 ? texto(l[cg]) : 'Todas as faixas'
       out.push({
         grupo: grupo || 'Sem grupo',
-        descricao: cg >= 0 ? texto(l[cg]) : '',
+        descricao: cc >= 0 ? texto(l[cc]) : cg >= 0 ? texto(l[cg]) : '',
         cep_inicial: ini,
         cep_final: fim,
         uf: (cu >= 0 ? texto(l[cu]).toUpperCase().slice(0, 2) : '') || ufDoCep(ini),
@@ -103,6 +107,9 @@ export function gruposDe(faixas: FaixaCep[]): { grupo: string; qtd: number }[] {
   for (const f of faixas) m.set(f.grupo, (m.get(f.grupo) ?? 0) + 1)
   return [...m].map(([grupo, qtd]) => ({ grupo, qtd }))
 }
+
+/** Região usada quando a abrangência não informa a região tarifária: "Capital", se existir, ou a primeira. */
+export const regiaoPadrao = (regioes: string[]) => regioes.find((r) => simplificar(r) === 'capital') ?? regioes[0] ?? ''
 
 /** Sugere a região de preço de cada grupo quando o nome do grupo contém o nome da região. */
 export function sugerirAtribuicao(grupos: string[], regioes: string[]): Record<string, string> {

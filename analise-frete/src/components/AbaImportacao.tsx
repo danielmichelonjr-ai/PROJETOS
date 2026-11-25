@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { aplicarAbrangencia, contarFaixasCep, gruposDe, lerAbrangencia, sugerirAtribuicao, type FaixaCep } from '../lib/abrangencia'
+import { aplicarAbrangencia, contarFaixasCep, gruposDe, lerAbrangencia, regiaoPadrao, sugerirAtribuicao, type FaixaCep } from '../lib/abrangencia'
 import {
   CAMPOS,
   converter,
@@ -174,10 +174,14 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
   const cepFaixas: FaixaCep[] = useMemo(() => (abrIdx >= 0 && fontes[abrIdx] ? lerAbrangencia(fontes[abrIdx].linhas) : []), [abrIdx, fontes])
   const grupos = useMemo(() => gruposDe(cepFaixas), [cepFaixas])
   const regioes = useMemo(() => [...new Set((conversao?.faixas ?? []).map((f) => f.cidade).filter(Boolean))], [conversao])
+  // Quando nenhum grupo informa a região tarifária, todos começam com a região padrão (Capital).
+  const sugestao = useMemo(() => sugerirAtribuicao(grupos.map((g) => g.grupo), regioes), [grupos, regioes])
+  const regiaoAssumida = grupos.length > 0 && regioes.length > 0 && !Object.keys(sugestao).length ? regiaoPadrao(regioes) : ''
   useEffect(() => {
-    // Ao trocar de abrangência ou de tabela, sugere a região pelo nome do grupo e mantém o que já foi escolhido.
-    setAtribuicao((a) => ({ ...sugerirAtribuicao(grupos.map((g) => g.grupo), regioes), ...a }))
-  }, [grupos, regioes])
+    // Ao trocar de abrangência ou de tabela, sugere a região de cada grupo e mantém o que já foi escolhido.
+    const base = regiaoAssumida ? Object.fromEntries(grupos.map((g) => [g.grupo, regiaoAssumida])) : sugestao
+    setAtribuicao((a) => ({ ...base, ...a }))
+  }, [grupos, sugestao, regiaoAssumida])
 
   const final = useMemo(() => {
     if (!conversao) return null
@@ -436,6 +440,12 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                     {num(cepFaixas.length)} faixas de CEP em {num(grupos.length)} grupos.
                     {!regioes.length && ' A tabela de preços ainda não tem regiões: aponte a coluna “Cidade / Região” acima.'}
                   </p>
+                  {regiaoAssumida && (
+                    <div className="aviso">
+                      A abrangência não informa a região tarifária de cada grupo, então todos foram considerados “{regiaoAssumida}”. Ajuste
+                      abaixo se algum grupo for de outra região.
+                    </div>
+                  )}
                   {regioes.length > 0 && (
                     <div className="linha" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
                       <span className="suave">Aplicar a todos os grupos:</span>
