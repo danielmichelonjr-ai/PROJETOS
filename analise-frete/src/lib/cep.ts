@@ -82,3 +82,8 @@ export function formatarCep(cep: string): string {
   const c = normalizarCep(cep)
   return c ? `${c.slice(0, 5)}-${c.slice(5)}` : ''
 }
+
+/** Faixas de CEP (8 dígitos) de uma UF, para propostas que só informam o estado. */
+export function faixasCepDaUf(uf: string): [string, string][] {
+  return FAIXAS_UF.filter(([u]) => u === uf.toUpperCase()).map(([, a, b]) => [String(a).padStart(5, '0') + '000', String(b).padStart(5, '0') + '999'])
+}

@@ -14,7 +14,7 @@ import {
 import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarProposta } from '../lib/dados'
 import { propostasExemplo } from '../lib/exemplo'
 import { data, num } from '../lib/formato'
-import { COLUNAS_INTELIPOST, exportarIntelipost, linhasIntelipost } from '../lib/intelipost'
+import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, type ParametrosIntelipost } from '../lib/intelipost'
 import { lerPdf, observacoesDoTexto, taxasDoTexto } from '../lib/pdf'
 import { detectarCabecalho, lerArquivo, numero, type Celula } from '../lib/planilha'
 import type { Proposta } from '../lib/types'
@@ -93,6 +93,15 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
   const opcoesColuna = cabecalho.map((c, i) => ({ i, rotulo: `${colunaLetra(i)} · ${c ?? '(vazio)'}` }))
   const taxas = useMemo(() => taxasDoTexto(textoPdf), [textoPdf])
   const observacoes = useMemo(() => observacoesDoTexto(textoPdf), [textoPdf])
+  const [params, setParams] = useState<ParametrosIntelipost>(parametrosLembrados)
+  const mudarParam = (k: keyof ParametrosIntelipost, v: string) => setParams((p) => ({ ...p, [k]: v }))
+  // PRAZO é obrigatório na Intelipost; quando a proposta não informa, vale o prazo padrão digitado.
+  const [prazoPadrao, setPrazoPadrao] = useState('')
+  // O que a proposta informa (ICMS, cubagem) entra nos parâmetros da tabela Intelipost.
+  useEffect(() => {
+    const doTexto = parametrosDoTexto(textoPdf)
+    if (Object.keys(doTexto).length) setParams((p) => ({ ...p, ...doTexto }))
+  }, [textoPdf])
 
   function prepararPreco(lin: Celula[][], txt = textoPdf) {
     const cab = Math.max(0, detectarCabecalhoProposta(lin) >= 0 ? detectarCabecalhoProposta(lin) : detectarCabecalho(lin))
@@ -185,12 +194,13 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
 
   const final = useMemo(() => {
     if (!conversao) return null
-    if (abrIdx < 0 || !cepFaixas.length) return conversao
+    if (abrIdx < 0 || !cepFaixas.length) return { ...conversao, faixas: comPrazo(conversao.faixas, prazoPadrao), semPrazo: conversao.faixas.some((f) => !f.prazo_dias) }
     const r = aplicarAbrangencia(conversao.faixas, cepFaixas, atribuicao)
     const avisos = [...conversao.avisos.filter((a) => !/sem UF/.test(a)), ...r.avisos]
     if (!r.faixas.length) avisos.push('Escolha a região de preço de cada grupo de CEP para montar a tabela.')
-    return { faixas: r.faixas, avisos }
-  }, [conversao, abrIdx, cepFaixas, atribuicao])
+    return { faixas: comPrazo(r.faixas, prazoPadrao), avisos, semPrazo: r.faixas.some((f) => !f.prazo_dias) }
+  }, [conversao, abrIdx, cepFaixas, atribuicao, prazoPadrao])
+  const pendencias = final ? [...(final.faixas.some((f) => !f.prazo_dias) ? ['PRAZO (dias)'] : []), ...pendenciasIntelipost(params)] : []
 
   function definirOrigem(campo: CampoFaixa, origem: Origem) {
     setMap((m) => (m ? { ...m, [campo]: origem } : m))
@@ -515,29 +525,48 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                   {a}
                 </div>
               ))}
-              <div className="tabela-wrap" style={{ maxHeight: 340 }}>
-                <table>
-                  <thead>
-                    <tr>
-                      {COLUNAS_INTELIPOST.map((c) => (
-                        <th key={c.cabecalho}>{c.cabecalho}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linhasIntelipost(final.faixas.slice(0, 100)).map((l, i) => (
-                      <tr key={i}>
-                        {l.map((c, j) => (
-                          <td key={j} className={typeof c === 'number' ? 'num' : ''}>
-                            {typeof c === 'number' ? num(c) : c}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <PreviaIntelipost faixas={final.faixas} />
+              <h3 style={{ marginTop: 22 }}>Dados da tabela Intelipost</h3>
+              <p className="suave">Vão na coluna A do modelo oficial. ICMS e CEP de origem são obrigatórios e ficam lembrados para as próximas propostas.</p>
+              <div className="grade" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}>
+                {final.semPrazo && (
+                  <label style={CAMPO}>
+                    Prazo (dias) sem prazo na proposta
+                    <input style={{ width: '100%', boxSizing: 'border-box' }} value={prazoPadrao} placeholder="A proposta não informa" inputMode="numeric" onChange={(e) => setPrazoPadrao(e.target.value.replace(/\D/g, ''))} />
+                  </label>
+                )}
+                <label style={CAMPO}>
+                  ICMS já está calculado?
+                  <select style={{ width: '100%', boxSizing: 'border-box' }} value={params.icms} onChange={(e) => mudarParam('icms', e.target.value)}>
+                    <option value="">Escolha…</option>
+                    <option value="S">S · valores já com ICMS</option>
+                    <option value="N">N · valores sem ICMS</option>
+                  </select>
+                </label>
+                {(
+                  [
+                    ['cepOrigemInicial', 'CEP origem inicial', 'Ex.: 89000000'],
+                    ['cepOrigemFinal', 'CEP origem final', 'Ex.: 89999999'],
+                    ['cubagem', 'Cubagem (kg/m³)', 'Ex.: 300'],
+                    ['isencaoCubagem', 'Isenção de cubagem (kg)', 'Opcional'],
+                    ['altura', 'Limite de altura (cm)', 'Opcional'],
+                    ['largura', 'Limite de largura (cm)', 'Opcional'],
+                    ['comprimento', 'Limite de comprimento (cm)', 'Opcional'],
+                    ['somaDimensoes', 'Limite da soma das dimensões (cm)', 'Opcional'],
+                    ['nomeTabela', 'Nome da tabela', `${transportadora || 'Transportadora'} - ${nome || arquivoNome}`],
+                  ] as [keyof ParametrosIntelipost, string, string][]
+                ).map(([k, rot, ph]) => (
+                  <label key={k} style={CAMPO}>
+                    {rot}
+                    <input style={{ width: '100%', boxSizing: 'border-box' }} value={params[k]} placeholder={ph} onChange={(e) => mudarParam(k, e.target.value)} />
+                  </label>
+                ))}
               </div>
-              {final.faixas.length > 100 && <p className="suave">Mostrando as 100 primeiras faixas.</p>}
+              {pendencias.length > 0 && (
+                <div className="aviso" style={{ marginTop: 10 }}>
+                  Campos obrigatórios do modelo ainda vazios: {pendencias.join(', ')}. A planilha sai assim mesmo, mas a Intelipost recusa sem eles.
+                </div>
+              )}
               <div className="linha" style={{ marginTop: 14 }}>
                 <button className="btn primario" disabled={!final.faixas.length || salvando} onClick={salvar}>
                   {salvando ? 'Salvando…' : 'Salvar proposta no histórico'}
@@ -545,7 +574,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                 <button
                   className="btn"
                   disabled={!final.faixas.length}
-                  onClick={() => exportarIntelipost({ transportadora: transportadora || 'Transportadora', nome: nome || arquivoNome }, final.faixas)}
+                  onClick={() => (lembrarParametros(params), exportarIntelipost({ transportadora: transportadora || 'Transportadora', nome: nome || arquivoNome }, final.faixas, params))}
                 >
                   Baixar planilha Intelipost (.xlsx)
                 </button>
@@ -649,3 +678,45 @@ function colunaLetra(i: number): string {
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s
   return s
 }
+
+/** Prévia das primeiras linhas como sairão na planilha Intelipost (uma linha por faixa de CEP, pesos em colunas). */
+function PreviaIntelipost({ faixas }: { faixas: Parameters<typeof previaIntelipost>[0] }) {
+  const p = useMemo(() => previaIntelipost(faixas), [faixas])
+  return (
+    <>
+      <div className="tabela-wrap" style={{ maxHeight: 340 }}>
+        <table>
+          <thead>
+            <tr>
+              {p.cabecalho.map((c) => (
+                <th key={c}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {p.linhas.map((l, i) => (
+              <tr key={i}>
+                {l.map((c, j) => (
+                  <td key={j} className={typeof c === 'number' ? 'num' : ''}>
+                    {typeof c === 'number' && j > 3 ? num(c) : c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="suave">
+        {num(p.total)} linhas no arquivo{p.total > p.linhas.length ? ` (mostrando ${num(p.linhas.length)})` : ''}. O arquivo baixado segue o modelo oficial PADRÃO INTELIPOST, com todas as colunas, cores e instruções.
+      </p>
+    </>
+  )
+}
+
+/** Aplica o prazo padrão às faixas que vieram sem prazo. */
+function comPrazo<T extends { prazo_dias: number }>(faixas: T[], prazo: string): T[] {
+  const n = Number(prazo)
+  return n > 0 ? faixas.map((f) => (f.prazo_dias ? f : { ...f, prazo_dias: n })) : faixas
+}
+
+const CAMPO = { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 } as const
