@@ -11,10 +11,11 @@ import {
   type Mapeamento,
   type Origem,
 } from '../lib/conversao'
-import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarProposta } from '../lib/dados'
+import { baseCidades, corretorCidades, lerBaseCidades, trocarBaseCidades, type BaseCidades, type CorretorCidade } from '../lib/cidades'
+import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarBaseCidades, salvarProposta, usuarioAtual } from '../lib/dados'
 import { propostasExemplo } from '../lib/exemplo'
 import { data, num } from '../lib/formato'
-import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, valorBr, type ParametrosIntelipost } from '../lib/intelipost'
+import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, extrasDe, TAXA_TRANSFERENCIA_SP, type ExtrasIntelipost, type OrigemColeta, type ParametrosIntelipost } from '../lib/intelipost'
 import { lerPdf, observacoesDoTexto, taxasDoTexto } from '../lib/pdf'
 import { detectarCabecalho, lerArquivo, numero, type Celula } from '../lib/planilha'
 import type { Proposta } from '../lib/types'
@@ -35,9 +36,16 @@ export default function AbaImportacao() {
     recarregar()
   }, [])
 
+  const [cidades, setCidades] = useState<BaseCidades | null>(null)
+  useEffect(() => {
+    baseCidades().then(setCidades)
+  }, [])
+  const corretor = useMemo(() => (cidades ? corretorCidades(cidades.linhas) : undefined), [cidades])
+
   return (
     <>
-      <Importador aoSalvar={recarregar} />
+      <BaseDeCidades base={cidades} aoTrocar={(b) => (trocarBaseCidades(b), setCidades(b))} />
+      <Importador aoSalvar={recarregar} corretor={corretor} />
       <PropostasSalvas propostas={propostas} erro={erroLista} recarregar={recarregar} />
     </>
   )
@@ -65,7 +73,7 @@ function pontuarPreco(linhas: Celula[][]): number {
   return sugerirColunasPeso(linhas[cab]).length * 2 + campos + Math.min(dados, 5)
 }
 
-function Importador({ aoSalvar }: { aoSalvar: () => void }) {
+function Importador({ aoSalvar, corretor }: { aoSalvar: () => void; corretor?: CorretorCidade }) {
   const [fontes, setFontes] = useState<Fonte[]>([])
   const [textoPdf, setTextoPdf] = useState<string[]>([])
   const [precoIdx, setPrecoIdx] = useState(0)
@@ -525,7 +533,7 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                   {a}
                 </div>
               ))}
-              <PreviaIntelipost faixas={final.faixas} grisMinimo={valorBr(params.grisMinimo)} />
+              <PreviaIntelipost faixas={final.faixas} extras={{ ...extrasDe(params), cidade: corretor }} />
               <h3 style={{ marginTop: 22 }}>Dados da tabela Intelipost</h3>
               <p className="suave">Vão na coluna A do modelo oficial. ICMS e CEP de origem são obrigatórios e ficam lembrados para as próximas propostas.</p>
               <div className="grade" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}>
@@ -535,6 +543,13 @@ function Importador({ aoSalvar }: { aoSalvar: () => void }) {
                     <input style={{ width: '100%', boxSizing: 'border-box' }} value={prazoPadrao} placeholder="A proposta não informa" inputMode="numeric" onChange={(e) => setPrazoPadrao(e.target.value.replace(/\D/g, ''))} />
                   </label>
                 )}
+                <label style={CAMPO}>
+                  Origem da coleta
+                  <select style={{ width: '100%', boxSizing: 'border-box' }} value={params.origemColeta} onChange={(e) => mudarParam('origemColeta', e.target.value as OrigemColeta)}>
+                    <option value="MATRIZ">Matriz</option>
+                    <option value="FILIAL SP">Filial SP (+ transferência R$ {TAXA_TRANSFERENCIA_SP.toFixed(2).replace('.', ',')}/kg)</option>
+                  </select>
+                </label>
                 <label style={CAMPO}>
                   ICMS já está calculado?
                   <select style={{ width: '100%', boxSizing: 'border-box' }} value={params.icms} onChange={(e) => mudarParam('icms', e.target.value)}>
@@ -681,8 +696,8 @@ function colunaLetra(i: number): string {
 }
 
 /** Prévia das primeiras linhas como sairão na planilha Intelipost (uma linha por faixa de CEP, pesos em colunas). */
-function PreviaIntelipost({ faixas, grisMinimo }: { faixas: Parameters<typeof previaIntelipost>[0]; grisMinimo: number | null }) {
-  const p = useMemo(() => previaIntelipost(faixas, grisMinimo), [faixas, grisMinimo])
+function PreviaIntelipost({ faixas, extras }: { faixas: Parameters<typeof previaIntelipost>[0]; extras: ExtrasIntelipost }) {
+  const p = useMemo(() => previaIntelipost(faixas, extras), [faixas, extras.grisMinimo, extras.outraTaxa, extras.cidade])
   return (
     <>
       <div className="tabela-wrap" style={{ maxHeight: 340 }}>
@@ -721,3 +736,50 @@ function comPrazo<T extends { prazo_dias: number }>(faixas: T[], prazo: string):
 }
 
 const CAMPO = { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 } as const
+
+/** Base de cidades por CEP: mostra qual está em uso e permite enviar uma versão atualizada. */
+function BaseDeCidades({ base, aoTrocar }: { base: BaseCidades | null; aoTrocar: (b: BaseCidades) => void }) {
+  const [msg, setMsg] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function enviar(arquivo: File | undefined) {
+    if (!arquivo) return
+    setEnviando(true)
+    setMsg(`Lendo ${arquivo.name}…`)
+    try {
+      const abas = await lerArquivo(arquivo)
+      const linhas = abas.map((a) => lerBaseCidades(a.linhas)).find((l) => l.length) ?? []
+      if (!linhas.length) throw new Error('Não encontrei as colunas UF, CIDADE, CEP DE e CEP ATÉ na planilha.')
+      const nova: BaseCidades = { linhas, arquivo: arquivo.name, enviada_em: new Date().toISOString(), enviada_por: (await usuarioAtual())?.email ?? null }
+      await salvarBaseCidades(nova)
+      aoTrocar(nova)
+      setMsg(`Base atualizada: ${num(linhas.length)} faixas de CEP.`)
+    } catch (e) {
+      const m = (e as Error).message
+      setMsg(/cidades_bases/.test(m) ? 'Falta criar a tabela cidades_bases no Supabase (rode o SQL cidades.sql).' : m)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="linha" style={{ justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>Base de cidades por CEP</h3>
+          <p className="suave" style={{ margin: '4px 0 0' }}>
+            {base
+              ? `${num(base.linhas.length)} faixas de CEP · ${base.arquivo}${base.enviada_em ? ` · enviada em ${data(base.enviada_em)}${base.enviada_por ? ` por ${base.enviada_por}` : ''}` : ''}.`
+              : 'Carregando…'}{' '}
+            Dá o nome da cidade na tabela Intelipost quando a proposta não traz ou traz errado.
+          </p>
+        </div>
+        <label className="btn" style={{ cursor: enviando ? 'wait' : 'pointer' }}>
+          <input type="file" accept=".xlsx,.xls,.csv" hidden disabled={enviando} onChange={(e) => (enviar(e.target.files?.[0]), (e.target.value = ''))} />
+          Enviar base atualizada
+        </label>
+      </div>
+      {msg && <p className="suave" style={{ marginTop: 8 }}>{msg}</p>}
+    </div>
+  )
+}

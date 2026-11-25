@@ -23,6 +23,8 @@ function valorDaCelula(cell: ExcelJS.Cell): Celula {
     if ('result' in o) {
       const r = o.result
       if (typeof r === 'number' && cell.numFmt?.includes('%')) return `${r * 100}%`
+      // Fórmula com erro (#REF!, #N/D) vem como { error: '#REF!' }.
+      if (r && typeof r === 'object') return 'error' in r ? String((r as { error: unknown }).error) : r instanceof Date ? r.toISOString().slice(0, 10) : null
       return (r as Celula) ?? null
     }
     if ('richText' in o) return (o.richText as { text: string }[]).map((t) => t.text).join('').trim()

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { BaseCidades } from './cidades'
 import type { BaseCotacao } from './cotacao'
 import type { BaseJadlog } from './jadlog'
 import type { Analise, Faixa, NovaProposta, Proposta } from './types'
@@ -271,6 +272,24 @@ export async function salvarBaseCotacao(base: BaseCotacao, email: string) {
     }
   }
   await supabase.from('cotacao_bases').delete().neq('id', data.id)
+}
+
+// ---------- Base de cidades por CEP (nomes usados na tabela Intelipost) ----------
+
+/** Última base de cidades enviada pela equipe; null se ninguém enviou (vale a base inicial do sistema). */
+export async function ultimaBaseCidades(): Promise<BaseCidades | null> {
+  if (!supabase) return lerLocal<BaseCidades | null>('demo_cidades_base', null)
+  const { data, error } = await supabase.from('cidades_bases').select('arquivo, linhas, enviado_por, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data ? { linhas: data.linhas, arquivo: data.arquivo, enviada_em: data.created_at, enviada_por: data.enviado_por } : null
+}
+
+/** Grava a base nova e apaga as anteriores. */
+export async function salvarBaseCidades(base: BaseCidades) {
+  if (!supabase) return gravarLocal('demo_cidades_base', base)
+  const { data, error } = await supabase.from('cidades_bases').insert({ arquivo: base.arquivo, linhas: base.linhas, enviado_por: base.enviada_por }).select('id').single()
+  if (error) throw new Error(error.message)
+  await supabase.from('cidades_bases').delete().neq('id', data.id)
 }
 
 // ---------- Armazenamento local (modo demonstração) ----------

@@ -1,3 +1,4 @@
+import { baseCidades, corretorCidades, type CorretorCidade } from './cidades'
 import { faixasCepDaUf } from './cep'
 import type { Celula } from './planilha'
 import type { Faixa, Proposta } from './types'
@@ -31,11 +32,30 @@ export interface ParametrosIntelipost {
   nomeTabela: string
   /** GRIS mínimo em R$ por CT-e: vai na coluna GRIS MÍNIMO de todas as linhas. */
   grisMinimo: string
+  /** De onde a transportadora coleta: na Filial SP entra a taxa interna de transferência. */
+  origemColeta: OrigemColeta
 }
 
 /** Origem padrão da Multimóveis: todo o Brasil. */
 export const CEP_ORIGEM_INICIAL = '01000000'
 export const CEP_ORIGEM_FINAL = '99999999'
+
+export type OrigemColeta = 'MATRIZ' | 'FILIAL SP'
+/** Taxa interna de transferência (R$ por kg) das coletas na Filial SP: vai em OUTRA TAXA FIXO, a cada 1 kg. */
+export const TAXA_TRANSFERENCIA_SP = 0.45
+
+/** Valores aplicados a todas as linhas da tabela, vindos dos parâmetros. */
+export interface ExtrasIntelipost {
+  grisMinimo?: number | null
+  outraTaxa?: number | null
+  /** Nome da cidade pela base de cidades por CEP. */
+  cidade?: CorretorCidade
+}
+
+export const extrasDe = (p: ParametrosIntelipost): ExtrasIntelipost => ({
+  grisMinimo: valorBr(p.grisMinimo),
+  outraTaxa: p.origemColeta === 'FILIAL SP' ? TAXA_TRANSFERENCIA_SP : null,
+})
 
 export const PARAMETROS_VAZIOS: ParametrosIntelipost = {
   icms: '',
@@ -49,6 +69,7 @@ export const PARAMETROS_VAZIOS: ParametrosIntelipost = {
   cepOrigemFinal: CEP_ORIGEM_FINAL,
   nomeTabela: '',
   grisMinimo: '',
+  origemColeta: 'MATRIZ',
 }
 
 const CHAVE_PARAMS = 'intelipost-parametros'
@@ -104,13 +125,14 @@ export interface LinhaIntelipost {
   tas: number | null
   pedagio: number | null
   grisMinimo: number | null
+  outraTaxa: number | null
 }
 
 const ou = (n: number) => (n ? n : null)
 const ABERTO = 999999
 
 /** Agrupa as faixas (CEP × peso) em linhas do modelo: uma por faixa de CEP, com o frete de cada peso em colunas. */
-export function montarTabelaIntelipost(faixas: Faixa[], grisMinimo: number | null = null): { pesos: number[]; linhas: LinhaIntelipost[] } {
+export function montarTabelaIntelipost(faixas: Faixa[], extras: ExtrasIntelipost = {}): { pesos: number[]; linhas: LinhaIntelipost[] } {
   const limites = [...new Set(faixas.map((f) => f.peso_final).filter((p) => p > 0))].sort((a, b) => a - b)
   const pesos = limites.some((p) => p < ABERTO) ? limites.filter((p) => p < ABERTO) : limites
   const grupos = new Map<string, Faixa[]>()
@@ -130,7 +152,7 @@ export function montarTabelaIntelipost(faixas: Faixa[], grisMinimo: number | nul
     for (const [ci, cf] of ceps)
       linhas.push({
         uf: f.uf_destino,
-        cidade: f.cidade,
+        cidade: extras.cidade ? extras.cidade(f.uf_destino, f.cidade, Number(ci), Number(cf)) : f.cidade,
         cepi: Number(ci),
         cepf: Number(cf),
         prazo: ou(f.prazo_dias),
@@ -141,7 +163,8 @@ export function montarTabelaIntelipost(faixas: Faixa[], grisMinimo: number | nul
         gris: ou(f.gris_pct),
         tas: ou(f.taxa_fixa),
         pedagio: ou(f.pedagio),
-        grisMinimo,
+        grisMinimo: extras.grisMinimo ?? null,
+        outraTaxa: extras.outraTaxa ?? null,
       })
   }
   linhas.sort((a, b) => a.cepi - b.cepi)
@@ -157,12 +180,14 @@ const VALOR_FIM: Record<string, (l: LinhaIntelipost) => Celula> = {
   'TAS FIXO': (l) => l.tas,
   'PEDÁGIO FIXO': (l) => l.pedagio,
   'FAIXA DE PESO (KG) DO PEDÁGIO FIXO': (l) => (l.pedagio ? 100 : null),
+  'OUTRA TAXA FIXO': (l) => l.outraTaxa,
+  'FAIXA DE PESO (KG) DA OUTRA TAXA FIXO': (l) => (l.outraTaxa ? 1 : null),
 }
 
 /** Colunas mostradas na prévia da tela (as que o sistema preenche). */
-export function previaIntelipost(faixas: Faixa[], grisMinimo: number | null = null, limite = 100): { cabecalho: string[]; linhas: Celula[][]; total: number } {
-  const { pesos, linhas } = montarTabelaIntelipost(faixas, grisMinimo)
-  const fim = Object.keys(VALOR_FIM)
+export function previaIntelipost(faixas: Faixa[], extras: ExtrasIntelipost = {}, limite = 100): { cabecalho: string[]; linhas: Celula[][]; total: number } {
+  const { pesos, linhas } = montarTabelaIntelipost(faixas, extras)
+  const fim = Object.keys(VALOR_FIM).filter((c) => !c.includes('OUTRA TAXA') || linhas.some((l) => l.outraTaxa))
   return {
     cabecalho: ['UF', 'CIDADE', 'CEPI', 'CEPF', 'PRAZO', 'VALOR MÍNIMO DO FRETE', ...pesos.map((p) => `${p} kg`), ...fim],
     linhas: linhas.slice(0, limite).map((l) => [l.uf, l.cidade, l.cepi, l.cepf, l.prazo, l.minimo, ...l.porPeso, ...fim.map((c) => VALOR_FIM[c](l))]),
@@ -175,7 +200,7 @@ const BRL = '"R$" #,##0.00'
 
 export async function exportarIntelipost(proposta: Pick<Proposta, 'transportadora' | 'nome'>, faixas: Faixa[], params: ParametrosIntelipost = parametrosLembrados()) {
   const { default: Excel } = await import('exceljs')
-  const { pesos, linhas } = montarTabelaIntelipost(faixas, valorBr(params.grisMinimo))
+  const { pesos, linhas } = montarTabelaIntelipost(faixas, { ...extrasDe(params), cidade: corretorCidades((await baseCidades()).linhas) })
   const wb = new Excel.Workbook()
   const ws = wb.addWorksheet('Planilha1')
   const borda = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } } as const
