@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { BaseCidades } from './cidades'
 import type { BasePedidos } from './pedidosBase'
+import type { TabelaIntelipost } from './tabelaIntelipost'
 import type { BaseCotacao } from './cotacao'
 import type { BaseJadlog } from './jadlog'
 import type { Analise, Faixa, NovaProposta, Proposta } from './types'
@@ -334,6 +335,21 @@ export async function salvarBasePedidos(base: BasePedidos, email: string, progre
     progresso?.(Math.min(1, (i + LOTE) / pedidos.length))
   }
   await supabase.from('pedidos_bases').delete().neq('id', data.id)
+}
+
+/** Última tabela Intelipost usada no estudo de competitividade (a mesma para toda a equipe). */
+export async function ultimaTabelaCompetitividade(): Promise<{ tabela: TabelaIntelipost; enviada_em: string; enviada_por: string | null } | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('competitividade_tabelas').select('tabela, enviado_por, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data ? { tabela: data.tabela, enviada_em: data.created_at, enviada_por: data.enviado_por } : null
+}
+
+export async function salvarTabelaCompetitividade(tabela: TabelaIntelipost, email: string) {
+  if (!supabase) return
+  const { data, error } = await supabase.from('competitividade_tabelas').insert({ nome: tabela.nome, arquivo: tabela.arquivo, tabela, enviado_por: email || null }).select('id').single()
+  if (error) throw new Error(error.message)
+  await supabase.from('competitividade_tabelas').delete().neq('id', data.id)
 }
 
 // ---------- Armazenamento local (modo demonstração) ----------

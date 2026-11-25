@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FAIXAS_PESO, ROTULO_CLASSE, classe, dif, estudar, rotuloFaixa, topCidadesPorUf, type Estudo, type OpcoesEstudo, type PorCidade, type Soma } from '../lib/competitividade'
-import { modoDemo, salvarBasePedidos, ultimaBasePedidos, usuarioAtual, type InfoBasePedidos } from '../lib/dados'
+import { modoDemo, salvarBasePedidos, salvarTabelaCompetitividade, ultimaBasePedidos, ultimaTabelaCompetitividade, usuarioAtual, type InfoBasePedidos } from '../lib/dados'
 import { data, dataHora, moeda, num } from '../lib/formato'
 import { P, type BasePedidos } from '../lib/pedidosBase'
 import { baixarXlsx, lerArquivo, type Celula } from '../lib/planilha'
@@ -85,10 +85,11 @@ function melhorAtual(c: PorCidade) {
 // O que foi carregado continua disponível ao trocar de aba e voltar: a base fica na memória da página
 // e a última tabela também fica guardada neste navegador.
 const CHAVE_TABELA = 'competitividade-ultima-tabela'
-const memoria: { base: BasePedidos | null; info: InfoBasePedidos | null; tabela: TabelaIntelipost | null; origem: string; de: string; ate: string } = {
+const memoria: { base: BasePedidos | null; info: InfoBasePedidos | null; tabela: TabelaIntelipost | null; infoTabela: string; origem: string; de: string; ate: string } = {
   base: null,
   info: null,
   tabela: lerTabelaGuardada(),
+  infoTabela: '',
   origem: '',
   de: '',
   ate: '',
@@ -117,6 +118,7 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
   const [ocupado, setOcupado] = useState(false)
   const [tabela, setTabela] = useState<TabelaIntelipost | null>(memoria.tabela)
   const [msgTabela, setMsgTabela] = useState('')
+  const [infoTabela, setInfoTabela] = useState(memoria.infoTabela)
   const [origem, setOrigem] = useState(memoria.origem)
   const [ufOrigem, setUfOrigem] = useState('SP')
   const [icmsModo, setIcmsModo] = useState<'regra' | 'fixo'>('regra')
@@ -127,8 +129,24 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
   const [minPedidos, setMinPedidos] = useState('5')
 
   useEffect(() => {
-    Object.assign(memoria, { base, info, tabela, origem, de, ate })
-  }, [base, info, tabela, origem, de, ate])
+    Object.assign(memoria, { base, info, tabela, infoTabela, origem, de, ate })
+  }, [base, info, tabela, infoTabela, origem, de, ate])
+
+  // A última tabela enviada por qualquer pessoa da equipe vale para todos.
+  useEffect(() => {
+    if (memoria.infoTabela) return
+    ultimaTabelaCompetitividade()
+      .then((r) => {
+        if (!r) return
+        setTabela((atual) => {
+          if (atual?.nome !== r.tabela.nome || atual?.linhas.length !== r.tabela.linhas.length) setOrigem('')
+          return r.tabela
+        })
+        guardarTabela(r.tabela)
+        setInfoTabela(`enviada em ${dataHora(r.enviada_em)}${r.enviada_por ? ` por ${r.enviada_por}` : ''}`)
+      })
+      .catch((e) => /competitividade_tabelas/.test(e.message) && setMsgTabela('Para a tabela valer para toda a equipe, rode o competitividade_tabela.sql no Supabase.'))
+  }, [])
 
   useEffect(() => {
     if (memoria.base) return
@@ -208,6 +226,11 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
           const t = lerTabelaIntelipost(a.linhas, f.name)
           setTabela(t)
           guardarTabela(t)
+          const email = (await usuarioAtual())?.email ?? ''
+          setInfoTabela(`enviada em ${dataHora(new Date().toISOString())}${email ? ` por ${email}` : ''}`)
+          salvarTabelaCompetitividade(t, email).catch((e) =>
+            setMsgTabela(/competitividade_tabelas/.test(e.message) ? 'A tabela ficou só neste navegador: rode o competitividade_tabela.sql no Supabase para valer para toda a equipe.' : `A tabela não foi salva para a equipe: ${e.message}`),
+          )
           setOrigem('')
           setMsgTabela('')
           return
@@ -247,7 +270,7 @@ export default function AbaCompetitividade({ irParaImportacao }: { irParaImporta
             <strong>2. Tabela da transportadora em análise</strong>
             <span className="suave">
               {tabela
-                ? `${tabela.nome} · ${num(tabela.linhas.length)} faixas de CEP · ${tabela.ufs.join(', ')} · pesos até ${tabela.pesos[tabela.pesos.length - 1] ?? '—'} kg · ICMS ${tabela.icmsIncluso === false ? 'não incluso' : tabela.icmsIncluso ? 'incluso' : 'não informado'}`
+                ? `${tabela.nome} · ${num(tabela.linhas.length)} faixas de CEP · ${tabela.ufs.join(', ')} · pesos até ${tabela.pesos[tabela.pesos.length - 1] ?? '—'} kg · ICMS ${tabela.icmsIncluso === false ? 'não incluso' : tabela.icmsIncluso ? 'incluso' : 'não informado'}${infoTabela ? ` · ${infoTabela}` : ''}`
                 : 'Planilha no modelo Intelipost (a que sai em Importar propostas). Clique para enviar.'}
             </span>
           </label>

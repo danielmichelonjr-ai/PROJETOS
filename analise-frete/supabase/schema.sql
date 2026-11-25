@@ -154,3 +154,18 @@ drop policy if exists "equipe" on public.pedidos_base_lotes;
 create policy "equipe" on public.pedidos_base_lotes for all to authenticated using (true) with check (true);
 grant select, insert, update, delete on public.pedidos_bases, public.pedidos_base_lotes to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Competitividade de frete: última tabela Intelipost em análise, a mesma para toda a equipe. Só a mais recente é mantida.
+create table if not exists public.competitividade_tabelas (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  arquivo text,
+  tabela jsonb not null,
+  enviado_por text,
+  created_by uuid default auth.uid() references auth.users (id),
+  created_at timestamptz not null default now()
+);
+alter table public.competitividade_tabelas enable row level security;
+drop policy if exists "equipe" on public.competitividade_tabelas;
+create policy "equipe" on public.competitividade_tabelas for all to authenticated using (true) with check (true);
+grant select, insert, update, delete on public.competitividade_tabelas to authenticated;
