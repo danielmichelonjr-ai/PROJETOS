@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { BaseCidades } from './cidades'
+import type { BasePedidos } from './pedidosBase'
 import type { BaseCotacao } from './cotacao'
 import type { BaseJadlog } from './jadlog'
 import type { Analise, Faixa, NovaProposta, Proposta } from './types'
@@ -290,6 +291,49 @@ export async function salvarBaseCidades(base: BaseCidades) {
   const { data, error } = await supabase.from('cidades_bases').insert({ arquivo: base.arquivo, linhas: base.linhas, enviado_por: base.enviada_por }).select('id').single()
   if (error) throw new Error(error.message)
   await supabase.from('cidades_bases').delete().neq('id', data.id)
+}
+
+// ---------- Base de pedidos do estudo de competitividade ----------
+
+export interface InfoBasePedidos {
+  arquivo: string
+  enviada_em: string
+  enviada_por: string | null
+}
+
+/** Última base de pedidos enviada para o estudo de competitividade (compartilhada pela equipe). */
+export async function ultimaBasePedidos(): Promise<{ base: BasePedidos; info: InfoBasePedidos } | null> {
+  if (!supabase) return lerLocal<{ base: BasePedidos; info: InfoBasePedidos } | null>('demo_pedidos_base', null)
+  const { data: cab, error } = await supabase.from('pedidos_bases').select('id, arquivo, meta, dic, enviado_por, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!cab) return null
+  const { data: lotes, error: e } = await supabase.from('pedidos_base_lotes').select('pedidos').eq('base_id', cab.id).order('parte')
+  if (e) throw new Error(e.message)
+  return {
+    base: { meta: cab.meta, dic: cab.dic, pedidos: (lotes ?? []).flatMap((l) => l.pedidos) },
+    info: { arquivo: cab.arquivo, enviada_em: cab.created_at, enviada_por: cab.enviado_por },
+  }
+}
+
+/** Grava a base nova em lotes e apaga as anteriores. */
+export async function salvarBasePedidos(base: BasePedidos, email: string, progresso?: (pct: number) => void) {
+  const { meta, dic, pedidos } = base
+  if (!supabase) {
+    // No modo demonstração a base inteira não cabe no navegador: guarda só nesta sessão.
+    return
+  }
+  const { data, error } = await supabase.from('pedidos_bases').insert({ arquivo: meta.fonte, total_pedidos: meta.pedidos, meta, dic, enviado_por: email || null }).select('id').single()
+  if (error) throw new Error(error.message)
+  const LOTE = 5000
+  for (let i = 0, parte = 0; i < pedidos.length; i += LOTE, parte++) {
+    const { error: e } = await supabase.from('pedidos_base_lotes').insert({ base_id: data.id, parte, pedidos: pedidos.slice(i, i + LOTE) })
+    if (e) {
+      await supabase.from('pedidos_bases').delete().eq('id', data.id)
+      throw new Error(e.message)
+    }
+    progresso?.(Math.min(1, (i + LOTE) / pedidos.length))
+  }
+  await supabase.from('pedidos_bases').delete().neq('id', data.id)
 }
 
 // ---------- Armazenamento local (modo demonstração) ----------

@@ -48,7 +48,7 @@ export const REGRAS = {
   genericas: ['transportadora', 'transportes', 'transporte', 'empresa', 'cia', 'de', 'e'],
 }
 
-const PEND = 'FAT. PENDENTE'
+export const PEND = 'FAT. PENDENTE'
 const NAO_FAT = 'Ainda não faturado'
 
 const COLS = {
@@ -66,7 +66,7 @@ const COLS = {
   cotacao: 'COTAÇÃO TRANSPORTADOR',
 }
 
-type Cel = string | number | boolean | Date | null | undefined
+export type Cel = string | number | boolean | Date | null | undefined
 
 const normCab = (s: Cel) => String(s ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
 const limpo = (v: Cel) => {
@@ -79,7 +79,7 @@ const p2 = (n: number) => String(n).padStart(2, '0')
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /** Data do Excel (número de série), Date ou texto -> { dia: 'AAAA-MM-DD', hora: 'HH:MM', ts } */
-function quando(v: Cel): { dia: string; hora: string; ts: number } | null {
+export function quando(v: Cel): { dia: string; hora: string; ts: number } | null {
   if (v == null || v === '') return null
   if (typeof v === 'number') {
     const s = Math.round(v * 86400)
@@ -106,7 +106,7 @@ function chave(nome: string) {
   return toks.length ? toks[0] : t
 }
 
-function nomeErp(v: string | null, serie: string) {
+export function nomeErp(v: string | null, serie: string) {
   if (!v) return v
   if (v.startsWith('Tempo Justo')) return (REGRAS.seriesMatriz.includes(serie) ? 'Tempo Justo Matriz (' : 'Vm Transportes (') + v + ')'
   return REGRAS.aliasErp[v] || v
@@ -129,6 +129,15 @@ export function acharCabecalhoPedidos(linhas: Cel[][]): number {
     const c = (l || []).map(normCab)
     return c.includes(COLS.pedido) && c.includes(COLS.data)
   })
+}
+
+/** Série da NF (o número depois do último "-") e a origem de expedição que ela indica. */
+export function origemDaNota(nf: string, uf: string): { serie: string; origem: string } {
+  const sm = nf.match(/-(\d+)$/)
+  const serie = sm ? sm[1] : ''
+  if (!serie) return { serie, origem: PEND }
+  if (serie === '25') return { serie, origem: uf === 'RJ' ? 'FILIAL RJ' : 'FILIAL SP' }
+  return { serie, origem: REGRAS.series[serie] || 'SÉRIE ' + serie + ' (SEM REGRA)' }
 }
 
 export function processarPedidos(linhasTodas: Cel[][], fonte: string): BaseCotacao {
