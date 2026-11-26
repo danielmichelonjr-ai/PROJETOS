@@ -118,3 +118,4 @@
 .cxf-barra .bmsg.erro { border-color: var(--vermelho, #ef6b6b); background: #3a1c1a; }
 .cxf-barra .avisos { margin: 0; padding-left: 18px; font-size: 0.85rem; color: #f0a63a; }
 .cxf.em-previa { outline: 2px dashed #f0a63a; outline-offset: 8px; border-radius: 6px; }
+.cxf .meses { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }

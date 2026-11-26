@@ -10,6 +10,7 @@ import './cotacao.css'
 type Janela = Window & {
   d3?: typeof d3
   montarRelatorio?: (dados: BaseCotacao, opc: object) => void
+  montarComMeses?: (dados: BaseCotacao, opc: object, alvo: HTMLElement, template: string) => void
   __vpResize?: () => void
 }
 const janela = window as Janela
@@ -39,7 +40,7 @@ const n0 = (n: number) => n.toLocaleString('pt-BR')
 const ddmm = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/')
 
 /** Monta um HTML único (dados + d3 + relatório) que abre no navegador sem login. */
-async function gerarHtml(dados: BaseCotacao) {
+async function gerarHtml(dados: BaseCotacao, mes: string) {
   const [{ default: d3txt }, { default: js }, { default: css }] = await Promise.all([
     import('../../node_modules/d3/dist/d3.min.js?raw'),
     import('../lib/cotacaoRelatorio.js?raw'),
@@ -55,15 +56,17 @@ async function gerarHtml(dados: BaseCotacao) {
     css +
     '\n</style>\n<script>' +
     d3txt.replace(/<\/script/gi, '<\\/script') +
-    '<\/script>\n</head>\n<body>\n<div class="cxf" style="max-width:1320px;margin:0 auto;padding:28px 16px 48px">\n' +
-    template +
-    '\n</div>\n<script>\nconst DATA = ' +
+    '<\/script>\n</head>\n<body>\n<div class="cxf" id="cxf-raiz" style="max-width:1320px;margin:0 auto;padding:28px 16px 48px"></div>\n<script>\nconst DATA = ' +
     json +
+    ';\nconst TEMPLATE = ' +
+    JSON.stringify(template).replace(/<\//g, '<\\/') +
     ';\n' +
     js +
-    '\nmontarRelatorio(DATA, { arquivo: true, geradoEm: ' +
+    '\nmontarComMeses(DATA, { arquivo: true, geradoEm: ' +
     JSON.stringify(gerado) +
-    ' });\n<\/script>\n</body>\n</html>\n'
+    ', mesInicial: ' +
+    JSON.stringify(mes) +
+    ' }, document.getElementById("cxf-raiz"), TEMPLATE);\n<\/script>\n</body>\n</html>\n'
   const nome = 'Cotacao_x_Faturamento_' + String(meta.fonte || 'pedidos').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_') + '.html'
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
   const a = document.createElement('a')
@@ -73,6 +76,9 @@ async function gerarHtml(dados: BaseCotacao) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
   return nome
 }
+
+/** Mês escolhido nos botões; fica guardado ao trocar de aba. */
+const memoria = { mes: '' }
 
 type Msg = { tipo: '' | 'info' | 'previa' | 'ok' | 'erro'; texto: string }
 
@@ -99,9 +105,8 @@ export default function AbaCotacao({ email }: { email: string }) {
   useEffect(() => {
     const el = relatorio.current
     if (!el || !dados) return
-    el.innerHTML = template
     try {
-      janela.montarRelatorio!(dados, {})
+      janela.montarComMeses!(dados, { mesInicial: memoria.mes, aoMudarMes: (m: string) => (memoria.mes = m) }, el, template)
     } catch (e) {
       el.textContent = 'Não foi possível montar o relatório: ' + (e as Error).message
     }
@@ -156,7 +161,7 @@ export default function AbaCotacao({ email }: { email: string }) {
     if (!dados) return
     setMsgHtml({ tipo: 'info', texto: 'Gerando o arquivo…' })
     try {
-      const nome = await gerarHtml(dados)
+      const nome = await gerarHtml(dados, memoria.mes)
       setMsgHtml({ tipo: 'ok', texto: `Arquivo ${nome} gerado.` })
     } catch (e) {
       setMsgHtml({ tipo: 'erro', texto: 'Não foi possível gerar o arquivo (' + (e as Error).message + ').' })

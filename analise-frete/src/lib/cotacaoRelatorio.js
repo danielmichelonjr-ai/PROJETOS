@@ -16,6 +16,8 @@ window.montarRelatorio = function (DATA, OPC) {
   const rows = P;
   const DIAS = Array.from(new Set(rows.map((r) => r.dia))).sort();
   const NDIAS = DIAS.length, ULT = NDIAS - 1, DI = new Map(DIAS.map((d, i) => [d, i]));
+  // Último dia parcial só quando o período vai até o fim da base (um mês fechado não tem dia parcial).
+  const PARC = opts0.parcial !== false && NDIAS > 1, IP = PARC ? ULT : -1, NC = PARC ? ULT : NDIAS;
   const first = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/)[0] || '';
 
   // ---------- árvore ----------
@@ -32,7 +34,7 @@ window.montarRelatorio = function (DATA, OPC) {
   const ORIGENS = ordena(raiz.filhos).sort((a, b) => (a.nome === PEND) - (b.nome === PEND) || b.total - a.total);
   const COR = new Map(ORIGENS.map((o, i) => [o.nome, C(i)]));
   const byId = new Map(); const idx = (n) => { byId.set(n.id, n); n.filhos.forEach(idx); }; idx(raiz);
-  const media = (n) => d3.mean(n.dias.slice(0, ULT));
+  const media = (n) => d3.mean(n.dias.slice(0, NC));
   const faturados = raiz.total - (raiz.filhos.get(PEND)?.total || 0);
 
   // ---------- tooltip ----------
@@ -64,11 +66,11 @@ window.montarRelatorio = function (DATA, OPC) {
 
   // ---------- cabeçalho e indicadores ----------
   const M = DATA.meta;
-  document.getElementById('periodo').textContent = `Pedidos por data de pagamento · ${dm(pd(DIAS[0]))} a ${dm(pd(DIAS[ULT]))}/${DIAS[ULT].slice(0, 4)} · ${dm(pd(DIAS[ULT]))} parcial (dados até ${M.ultimo.slice(-5)}) · ${n0(M.cancelados)} cancelados fora da contagem`;
-  const ip = d3.maxIndex(raiz.dias.slice(0, ULT));
+  document.getElementById('periodo').textContent = `Pedidos por data de pagamento · ${dm(pd(DIAS[0]))} a ${dm(pd(DIAS[ULT]))}/${DIAS[ULT].slice(0, 4)}` + (PARC ? ` · ${dm(pd(DIAS[ULT]))} parcial (dados até ${M.ultimo.slice(-5)})` : '') + (opts0.mes ? ' · cancelados fora da contagem' : ` · ${n0(M.cancelados)} cancelados fora da contagem`);
+  const ip = d3.maxIndex(raiz.dias.slice(0, NC));
   const tiles = [
     ['Pedidos no período', n0(raiz.total), `${dm(pd(DIAS[0]))} a ${dm(pd(DIAS[ULT]))}, sem cancelados`, ''],
-    ['Média por dia', n1(media(raiz)), `Dias completos: ${dm(pd(DIAS[0]))} a ${dm(pd(DIAS[ULT - 1]))}`, ''],
+    ['Média por dia', n1(media(raiz)), `Dias completos: ${dm(pd(DIAS[0]))} a ${dm(pd(DIAS[NC - 1]))}`, ''],
     ['Pico diário', n0(raiz.dias[ip]), 'em ' + diaLbl(DIAS[ip]), ''],
     ['Faturados', n0(faturados), pct(faturados / raiz.total) + ' dos pedidos com NF', 'ok'],
     ['Faturou com outra transportadora', pct(raiz.outra / faturados), n0(raiz.outra) + ' dos faturados saíram por transportadora diferente da cotada', 'warn'],
@@ -102,13 +104,13 @@ window.montarRelatorio = function (DATA, OPC) {
     eixos(svg, x, y, W, H, m, narrow);
     svg.append('g').selectAll('g').data(st).join('g').style('fill', (s) => COR.get(s.key))
       .selectAll('rect').data((s) => s).join('rect').attr('x', (r) => x(r.data.dia)).attr('width', x.bandwidth())
-      .attr('y', (r) => y(r[1])).attr('height', (r) => Math.max(0, y(r[0]) - y(r[1]))).style('opacity', (r) => r.data.dia === DIAS[ULT] ? 0.45 : 1);
+      .attr('y', (r) => y(r[1])).attr('height', (r) => Math.max(0, y(r[0]) - y(r[1]))).style('opacity', (r) => r.data.dia === DIAS[IP] ? 0.45 : 1);
     if (!narrow) svg.append('g').selectAll('text').data(DIAS).join('text').attr('class', 'val').attr('text-anchor', 'middle')
       .attr('x', (d) => x(d) + x.bandwidth() / 2).attr('y', (d, i) => y(raiz.dias[i]) - 5).text((d, i) => n0(raiz.dias[i]));
     const tip = tipOf(el);
     svg.append('g').selectAll('rect').data(DIAS).join('rect').attr('x', (d) => x(d)).attr('width', x.bandwidth()).attr('y', m.t).attr('height', H - m.b - m.t).style('fill', 'transparent')
       .attr('class', 'clicavel').on('click', (ev, d) => setCtx({ dia: d }))
-      .on('pointermove', (ev, d) => { const i = DI.get(d); tip.show(ev, [[diaLbl(d) + (i === ULT ? ' (parcial)' : '') + ' · ' + n0(raiz.dias[i])], ...ORIGENS.map((o) => [o.nome, n0(o.dias[i]) + '  (' + pct(raiz.dias[i] ? o.dias[i] / raiz.dias[i] : 0) + ')', COR.get(o.nome)])]); })
+      .on('pointermove', (ev, d) => { const i = DI.get(d); tip.show(ev, [[diaLbl(d) + (i === IP ? ' (parcial)' : '') + ' · ' + n0(raiz.dias[i])], ...ORIGENS.map((o) => [o.nome, n0(o.dias[i]) + '  (' + pct(raiz.dias[i] ? o.dias[i] / raiz.dias[i] : 0) + ')', COR.get(o.nome)])]); })
       .on('pointerleave', () => tip.hide());
   }
 
@@ -132,9 +134,9 @@ window.montarRelatorio = function (DATA, OPC) {
       const svg = d3.select(ch).append('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'Pedidos por dia de ' + o.nome);
       const tip = tipOf(ch);
       svg.selectAll('rect').data(o.dias).join('rect').attr('x', (v, i) => x(DIAS[i])).attr('width', x.bandwidth()).attr('y', (v) => y(v)).attr('height', (v) => H - 2 - y(v))
-        .attr('rx', 1).style('fill', COR.get(o.nome)).style('opacity', (v, i) => i === ULT ? 0.4 : 1);
+        .attr('rx', 1).style('fill', COR.get(o.nome)).style('opacity', (v, i) => i === IP ? 0.4 : 1);
       svg.selectAll('rect.hit').data(o.dias).join('rect').attr('class', 'hit').attr('x', (v, i) => x(DIAS[i])).attr('width', x.bandwidth()).attr('y', 0).attr('height', H).style('fill', 'transparent')
-        .on('pointermove', (ev) => { const i = Math.min(ULT, Math.max(0, Math.floor(d3.pointer(ev, svg.node())[0] / x.step()))); tip.show(ev, [[o.nome], [diaLbl(DIAS[i]) + (i === ULT ? ' (parcial)' : ''), n0(o.dias[i])]]); })
+        .on('pointermove', (ev) => { const i = Math.min(ULT, Math.max(0, Math.floor(d3.pointer(ev, svg.node())[0] / x.step()))); tip.show(ev, [[o.nome], [diaLbl(DIAS[i]) + (i === IP ? ' (parcial)' : ''), n0(o.dias[i])]]); })
         .on('pointerleave', () => tip.hide());
       b.addEventListener('click', () => { estado.origem = o.nome; selOrig.value = o.nome; abertos.add(o.id); selecionar(o.id); render(); setCtx({ origem: o.nome }); document.getElementById('arvore').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     });
@@ -162,8 +164,8 @@ window.montarRelatorio = function (DATA, OPC) {
     const cor = n.nivel === 0 ? 'var(--accent)' : COR.get(cadeia[1].nome);
     const tip = tipOf(el);
     svg.append('g').selectAll('rect').data(n.dias).join('rect').attr('x', (v, i) => x(DIAS[i])).attr('width', x.bandwidth()).attr('y', (v) => y(v)).attr('height', (v) => y(0) - y(v))
-      .attr('rx', 2).style('fill', cor).style('opacity', (v, i) => i === ULT ? 0.4 : 1)
-      .on('pointermove', (ev, v) => { const i = Math.min(ULT, Math.max(0, Math.floor((d3.pointer(ev, svg.node())[0] - m.l) / x.step()))); tip.show(ev, [[diaLbl(DIAS[i]) + (i === ULT ? ' (parcial)' : '')], ['Pedidos', n0(n.dias[i])], ['% do dia (geral)', pct(raiz.dias[i] ? n.dias[i] / raiz.dias[i] : 0)]]); })
+      .attr('rx', 2).style('fill', cor).style('opacity', (v, i) => i === IP ? 0.4 : 1)
+      .on('pointermove', (ev, v) => { const i = Math.min(ULT, Math.max(0, Math.floor((d3.pointer(ev, svg.node())[0] - m.l) / x.step()))); tip.show(ev, [[diaLbl(DIAS[i]) + (i === IP ? ' (parcial)' : '')], ['Pedidos', n0(n.dias[i])], ['% do dia (geral)', pct(raiz.dias[i] ? n.dias[i] / raiz.dias[i] : 0)]]); })
       .on('pointerleave', () => tip.hide());
     if (!narrow) svg.append('g').selectAll('text').data(n.dias).join('text').attr('class', 'val').attr('text-anchor', 'middle')
       .attr('x', (v, i) => x(DIAS[i]) + x.bandwidth() / 2).attr('y', (v) => y(v) - 4).text((v) => v ? n0(v) : '');
@@ -183,14 +185,14 @@ window.montarRelatorio = function (DATA, OPC) {
     const hr = t.createTHead().insertRow();
     const th = (txt, cls, sub) => { const c = document.createElement('th'); c.textContent = txt; if (sub) { const s = document.createElement('small'); s.textContent = sub; c.appendChild(s); } if (cls) c.className = cls; c.scope = 'col'; hr.appendChild(c); };
     th('Origem › Cotou › Faturou', 'nm'); th('Série', 'sr');
-    DIAS.forEach((d, i) => th(dm(pd(d)), i === ULT ? 'part' : '', SEM[pd(d).getUTCDay()] + (i === ULT ? '*' : '')));
+    DIAS.forEach((d, i) => th(dm(pd(d)), i === IP ? 'part' : '', SEM[pd(d).getUTCDay()] + (i === IP ? '*' : '')));
     th('Total', 'sep'); th('Média/dia'); th('% no nível acima'); th('% do total'); th('Faturou com outra', 'sep');
     const tb = t.createTBody();
     const q = estado.busca.trim().toLowerCase();
     const casa = (n) => !q || n.nome.toLowerCase().includes(q) || Array.from(n.filhos.values()).some(casa);
     const linha = (n) => {
       const tr = tb.insertRow(); tr.className = 'nav l' + n.nivel + (n.id === selId ? ' sel' : ''); tr.dataset.id = n.id; tr.tabIndex = 0;
-      const max = d3.max(n.dias.slice(0, ULT)) || 1;
+      const max = d3.max(n.dias.slice(0, NC)) || 1;
       const c0 = tr.insertCell(); c0.className = 'nm'; c0.title = n.nome;
       const tem = n.nivel < 3 && n.filhos.size;
       const aberto = abertos.has(n.id) || (q && n.nivel < 3);
@@ -198,7 +200,7 @@ window.montarRelatorio = function (DATA, OPC) {
       if (n.nivel === 1) { const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = COR.get(n.nome); c0.appendChild(sw); }
       c0.append(n.nome);
       const cs = tr.insertCell(); cs.className = 'sr'; cs.textContent = n.nivel === 1 ? (n.series.size ? Array.from(n.series).sort((a, b) => a - b).join(', ') : '—') : '';
-      n.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = v ? n0(v) : '·'; if (i === ULT) c.className = 'part'; if (v) c.style.background = `color-mix(in srgb, ${COR.get(n.nivel === 1 ? n.nome : (n.nivel === 2 ? n.pai.nome : n.pai.pai.nome))} ${Math.round(6 + 40 * (v / max))}%, transparent)`; });
+      n.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = v ? n0(v) : '·'; if (i === IP) c.className = 'part'; if (v) c.style.background = `color-mix(in srgb, ${COR.get(n.nivel === 1 ? n.nome : (n.nivel === 2 ? n.pai.nome : n.pai.pai.nome))} ${Math.round(6 + 40 * (v / max))}%, transparent)`; });
       const add = (txt, cls) => { const c = tr.insertCell(); c.textContent = txt; if (cls) c.className = cls; return c; };
       add(n0(n.total), 'sep'); add(n1(media(n))); add(pct(n.total / n.pai.total)); add(pct(n.total / raiz.total));
       const co = add(n.fat ? (n.outra ? n0(n.outra) + ' · ' + pct(n.outra / n.fat) : '—') : '', 'sep'); if (n.fat && n.outra / n.fat >= 0.2) co.classList.add('diff');
@@ -210,7 +212,7 @@ window.montarRelatorio = function (DATA, OPC) {
     ORIGENS.filter((o) => !estado.origem || o.nome === estado.origem).filter(casa).forEach(linha);
     const tr = tb.insertRow(); tr.className = 'tot';
     const nm = tr.insertCell(); nm.className = 'nm'; nm.textContent = 'TOTAL GERAL'; tr.insertCell();
-    raiz.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = n0(v); if (i === ULT) c.className = 'part'; });
+    raiz.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = n0(v); if (i === IP) c.className = 'part'; });
     [n0(raiz.total), n1(media(raiz)), '', '100,0%', n0(raiz.outra) + ' · ' + pct(raiz.outra / faturados)].forEach((v, k) => { const c = tr.insertCell(); c.textContent = v; if (k === 0 || k === 4) c.className = 'sep'; });
   }
   selOrig.addEventListener('change', () => { estado.origem = selOrig.value; if (selOrig.value) { const o = raiz.filhos.get(selOrig.value); abertos.add(o.id); selecionar(o.id); } else selecionar('all'); render(); });
@@ -329,7 +331,7 @@ window.montarRelatorio = function (DATA, OPC) {
     const hr = t.createTHead().insertRow();
     const th = (txt, cls, sub) => { const c = document.createElement('th'); c.textContent = txt; if (sub) { const s = document.createElement('small'); s.textContent = sub; c.appendChild(s); } if (cls) c.className = cls; c.scope = 'col'; hr.appendChild(c); };
     th('Origem › Cotou › Faturou', 'nm'); th('Série', 'sr');
-    DIAS.forEach((d, i) => th(dm(pd(d)), i === ULT ? 'part' : '', SEM[pd(d).getUTCDay()] + (i === ULT ? '*' : '')));
+    DIAS.forEach((d, i) => th(dm(pd(d)), i === IP ? 'part' : '', SEM[pd(d).getUTCDay()] + (i === IP ? '*' : '')));
     th('Total', 'sep'); th('% no nível acima'); th('% dos fora da SP');
     const tb = t.createTBody();
     const linha = (n) => {
@@ -340,8 +342,8 @@ window.montarRelatorio = function (DATA, OPC) {
       if (n.nivel === 1) { const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = COR.get(n.nome); c0.appendChild(sw); }
       c0.append(n.nome);
       const cs = tr.insertCell(); cs.className = 'sr'; cs.textContent = n.nivel === 1 ? Array.from(n.series).sort((a, b) => a - b).join(', ') : '';
-      const max = d3.max(n.dias.slice(0, ULT)) || 1; const base = n.nivel === 1 ? n.nome : n.nivel === 2 ? n.pai.nome : n.pai.pai.nome;
-      n.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = v ? n0(v) : '·'; if (i === ULT) c.className = 'part'; if (v) c.style.background = `color-mix(in srgb, ${COR.get(base)} ${Math.round(6 + 40 * (v / max))}%, transparent)`; });
+      const max = d3.max(n.dias.slice(0, NC)) || 1; const base = n.nivel === 1 ? n.nome : n.nivel === 2 ? n.pai.nome : n.pai.pai.nome;
+      n.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = v ? n0(v) : '·'; if (i === IP) c.className = 'part'; if (v) c.style.background = `color-mix(in srgb, ${COR.get(base)} ${Math.round(6 + 40 * (v / max))}%, transparent)`; });
       [[n0(n.total), 'sep'], [pct(n.total / n.pai.total)], [pct(n.total / spfTree.total)]].forEach(([v, cls]) => { const c = tr.insertCell(); c.textContent = v; if (cls) c.className = cls; });
       tr.addEventListener('click', () => ctxNo(n, { foraSP: true }));
       if (tem) { const tg = () => { if (abertosSpf.has(n.id)) abertosSpf.delete(n.id); else abertosSpf.add(n.id); renderSpf(); }; tr.addEventListener('click', tg); tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg(); } }); }
@@ -350,7 +352,7 @@ window.montarRelatorio = function (DATA, OPC) {
     spfOrig.forEach(linha);
     const tr = tb.insertRow(); tr.className = 'tot';
     const nm = tr.insertCell(); nm.className = 'nm'; nm.textContent = 'TOTAL FORA DA FILIAL SP'; tr.insertCell();
-    spfTree.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = n0(v); if (i === ULT) c.className = 'part'; });
+    spfTree.dias.forEach((v, i) => { const c = tr.insertCell(); c.textContent = n0(v); if (i === IP) c.className = 'part'; });
     [[n0(spfTree.total), 'sep'], [''], ['100,0%']].forEach(([v, cls]) => { const c = tr.insertCell(); c.textContent = v; if (cls) c.className = cls; });
   }
   document.getElementById('spf-b1').addEventListener('click', () => { abertosSpf.clear(); spfSel = ''; renderSpf(); });
@@ -368,13 +370,13 @@ window.montarRelatorio = function (DATA, OPC) {
     const svg = d3.select(el).append('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'Pedidos cotados pela Filial SP e faturados por outra origem, por dia');
     eixos(svg, x, y, W, H, m, narrow);
     svg.append('g').selectAll('g').data(st).join('g').style('fill', (s) => COR.get(s.key)).selectAll('rect').data((s) => s).join('rect')
-      .attr('x', (r) => x(r.data.dia)).attr('width', x.bandwidth()).attr('y', (r) => y(r[1])).attr('height', (r) => Math.max(0, y(r[0]) - y(r[1]))).style('opacity', (r) => r.data.dia === DIAS[ULT] ? 0.45 : 1);
+      .attr('x', (r) => x(r.data.dia)).attr('width', x.bandwidth()).attr('y', (r) => y(r[1])).attr('height', (r) => Math.max(0, y(r[0]) - y(r[1]))).style('opacity', (r) => r.data.dia === DIAS[IP] ? 0.45 : 1);
     if (!narrow) svg.append('g').selectAll('text').data(spfTree.dias).join('text').attr('class', 'val').attr('text-anchor', 'middle')
       .attr('x', (v, i) => x(DIAS[i]) + x.bandwidth() / 2).attr('y', (v) => y(v) - 4).text((v) => v ? n0(v) : '');
     const tip = tipOf(el);
     svg.append('g').selectAll('rect').data(DIAS).join('rect').attr('x', (d) => x(d)).attr('width', x.bandwidth()).attr('y', m.t).attr('height', H - m.b - m.t).style('fill', 'transparent')
       .attr('class', 'clicavel').on('click', (ev, d) => setCtx({ dia: d, foraSP: true }))
-      .on('pointermove', (ev, d) => { const i = DI.get(d); tip.show(ev, [[diaLbl(d) + (i === ULT ? ' (parcial)' : '') + ' · ' + n0(spfTree.dias[i])], ...spfOrig.map((o) => [o.nome, n0(o.dias[i]), COR.get(o.nome)])]); })
+      .on('pointermove', (ev, d) => { const i = DI.get(d); tip.show(ev, [[diaLbl(d) + (i === IP ? ' (parcial)' : '') + ' · ' + n0(spfTree.dias[i])], ...spfOrig.map((o) => [o.nome, n0(o.dias[i]), COR.get(o.nome)])]); })
       .on('pointerleave', () => tip.hide());
   }
   // ---------- quadro de pedidos ----------
@@ -464,4 +466,34 @@ window.montarRelatorio = function (DATA, OPC) {
   if (window.__vpResize) removeEventListener('resize', window.__vpResize);
   let w = innerWidth, to; window.__vpResize = () => { clearTimeout(to); to = setTimeout(() => { if (innerWidth !== w) { w = innerWidth; tudo(); } }, 150); };
   addEventListener('resize', window.__vpResize);
+};
+
+// Botões de mês acima do relatório: só os meses que existem na base. Cada clique remonta o relatório com o mês escolhido.
+window.montarComMeses = function (DATA, OPC, alvo, TEMPLATE) {
+  const NOMES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const dias = DATA.dic.dias, cont = new Map();
+  DATA.pedidos.forEach((a) => { const m = dias[a[0]].slice(0, 7); cont.set(m, (cont.get(m) || 0) + 1); });
+  const meses = Array.from(cont.keys()).sort();
+  const ultimoMes = meses[meses.length - 1];
+  const fmt = (n) => n.toLocaleString('pt-BR');
+  let sel = OPC.mesInicial && (OPC.mesInicial === 'todos' || cont.has(OPC.mesInicial)) ? OPC.mesInicial : (meses.length > 1 ? ultimoMes : 'todos');
+  function montar() {
+    if (window.__vpResize) removeEventListener('resize', window.__vpResize);
+    alvo.innerHTML = TEMPLATE;
+    const dados = sel === 'todos' ? DATA : { meta: DATA.meta, dic: DATA.dic, pedidos: DATA.pedidos.filter((a) => dias[a[0]].startsWith(sel)) };
+    window.montarRelatorio(dados, Object.assign({}, OPC, { mes: sel === 'todos' ? '' : sel, parcial: sel === 'todos' || sel === ultimoMes }));
+    const nav = alvo.querySelector('#meses');
+    if (!nav) return;
+    if (meses.length < 2) { nav.hidden = true; return; }
+    const botao = (valor, rotulo, n) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (valor === sel ? ' pri' : '');
+      b.setAttribute('aria-pressed', String(valor === sel));
+      b.textContent = rotulo + ' · ' + fmt(n);
+      b.addEventListener('click', () => { if (valor === sel) return; sel = valor; if (OPC.aoMudarMes) OPC.aoMudarMes(sel); montar(); });
+      return b;
+    };
+    const lbl = document.createElement('span'); lbl.className = 'sub'; lbl.textContent = 'Mês:';
+    nav.replaceChildren(lbl, ...meses.map((m) => botao(m, NOMES[+m.slice(5) - 1] + '/' + m.slice(0, 4), cont.get(m))), botao('todos', 'Todos', DATA.pedidos.length));
+  }
+  montar();
 };
