@@ -15,7 +15,7 @@ import { baseCidades, corretorCidades, lerBaseCidades, trocarBaseCidades, type B
 import { excluirProposta, listarPropostas, modoDemo, obterFaixas, salvarBaseCidades, salvarProposta, usuarioAtual } from '../lib/dados'
 import { propostasExemplo } from '../lib/exemplo'
 import { data, num } from '../lib/formato'
-import { exportarIntelipost, lembrarParametros, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, extrasDe, TAXA_TRANSFERENCIA_SP, type ExtrasIntelipost, type OrigemColeta, type ParametrosIntelipost } from '../lib/intelipost'
+import { exportarIntelipost, lembrarParametros, parametrosDaPlanilha, parametrosDoTexto, parametrosLembrados, pendenciasIntelipost, previaIntelipost, extrasDe, TAXA_TRANSFERENCIA_SP, type ExtrasIntelipost, type OrigemColeta, type ParametrosIntelipost } from '../lib/intelipost'
 import { lerPdf, observacoesDoTexto, taxasDoTexto } from '../lib/pdf'
 import { detectarCabecalho, lerArquivo, numero, type Celula } from '../lib/planilha'
 import type { Proposta } from '../lib/types'
@@ -115,6 +115,8 @@ function Importador({ aoSalvar, corretor }: { aoSalvar: () => void; corretor?: C
     const cab = Math.max(0, detectarCabecalhoProposta(lin) >= 0 ? detectarCabecalhoProposta(lin) : detectarCabecalho(lin))
     setLinhaCab(cab)
     aplicarCabecalho(lin[cab] ?? [], txt)
+    const daPlanilha = parametrosDaPlanilha(lin)
+    if (Object.keys(daPlanilha).length) setParams((p) => ({ ...p, ...daPlanilha }))
   }
 
   function aplicarCabecalho(cab: Celula[], txt = textoPdf) {

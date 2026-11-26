@@ -48,13 +48,21 @@ export async function lerArquivo(arquivo: File): Promise<Aba[]> {
   await wb.xlsx.load(await arquivo.arrayBuffer())
   const abas: Aba[] = []
   wb.eachSheet((ws) => {
-    const linhas: Celula[][] = []
-    ws.eachRow({ includeEmpty: true }, (row, n) => {
+    // Só linhas com conteúdo: planilhas com formatação até a última linha do Excel (1.048.576)
+    // fariam a página percorrer um milhão de linhas vazias e travar.
+    const porLinha = new Map<number, Celula[]>()
+    let ultima = 0
+    // columnCount percorre a aba inteira a cada leitura: calcula uma vez só.
+    const colunas = ws.columnCount
+    ws.eachRow((row, n) => {
       const linha: Celula[] = []
-      for (let c = 1; c <= ws.columnCount; c++) linha.push(valorDaCelula(row.getCell(c)))
-      linhas[n - 1] = linha
+      for (let c = 1; c <= colunas; c++) linha.push(valorDaCelula(row.getCell(c)))
+      if (!linha.some((v) => v !== null && v !== '')) return
+      porLinha.set(n, linha)
+      ultima = n
     })
-    for (let i = 0; i < linhas.length; i++) if (!linhas[i]) linhas[i] = []
+    const linhas: Celula[][] = []
+    for (let n = 1; n <= ultima; n++) linhas.push(porLinha.get(n) ?? [])
     abas.push({ nome: ws.name, linhas })
   })
   return abas

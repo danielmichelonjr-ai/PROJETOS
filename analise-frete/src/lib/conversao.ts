@@ -15,8 +15,8 @@ export interface DefCampo {
 export const CAMPOS: DefCampo[] = [
   { campo: 'uf_destino', rotulo: 'UF destino', numerico: false, sinonimos: ['uf', 'estado', 'uf destino', 'destino uf'] },
   { campo: 'cidade', rotulo: 'Cidade / Região', numerico: false, sinonimos: ['cidade', 'municipio', 'município', 'regiao', 'região', 'praca', 'praça', 'localidade', 'destino'] },
-  { campo: 'cep_inicial', rotulo: 'CEP inicial', numerico: false, sinonimos: ['cep inicial', 'cep ini', 'cep de', 'cep inicio', 'faixa inicial', 'cep_inicial'] },
-  { campo: 'cep_final', rotulo: 'CEP final', numerico: false, sinonimos: ['cep final', 'cep fim', 'cep ate', 'cep até', 'faixa final', 'cep_final'] },
+  { campo: 'cep_inicial', rotulo: 'CEP inicial', numerico: false, sinonimos: ['cep inicial', 'cep ini', 'cep de', 'cep inicio', 'faixa inicial', 'cep_inicial', 'cepi'] },
+  { campo: 'cep_final', rotulo: 'CEP final', numerico: false, sinonimos: ['cep final', 'cep fim', 'cep ate', 'cep até', 'faixa final', 'cep_final', 'cepf'] },
   { campo: 'peso_inicial', rotulo: 'Peso inicial (kg)', numerico: true, sinonimos: ['peso inicial', 'peso de', 'peso min', 'peso mínimo', 'kg inicial'] },
   { campo: 'peso_final', rotulo: 'Peso final (kg)', numerico: true, sinonimos: ['peso final', 'peso ate', 'peso até', 'peso max', 'peso máximo', 'kg final'] },
   { campo: 'valor_frete', rotulo: 'Valor do frete (R$)', numerico: true, sinonimos: ['valor', 'frete', 'frete peso', 'valor frete', 'preco', 'preço', 'tarifa'] },
@@ -48,7 +48,9 @@ export function sugerirMapeamento(cabecalho: Celula[]): Mapeamento {
   const usados = new Set<number>()
   const cab = cabecalho.map(simplificar)
   const map = {} as Mapeamento
-  for (const def of CAMPOS) {
+  // "Valor do frete" por último: o sinônimo "valor" pegaria colunas como VALOR EXCEDENTE.
+  const ordem = [...CAMPOS.filter((d) => d.campo !== 'valor_frete'), ...CAMPOS.filter((d) => d.campo === 'valor_frete')]
+  for (const def of ordem) {
     let achou = -1
     // Primeiro procura correspondência exata, depois "contém".
     for (const modo of ['igual', 'contem'] as const) {

@@ -308,6 +308,34 @@ export function pendenciasIntelipost(p: ParametrosIntelipost): string[] {
 }
 
 /** Parâmetros que a própria proposta informa no texto: ICMS e cubagem. */
+/**
+ * Parâmetros escritos na própria planilha da proposta, nas primeiras colunas: rótulo numa célula e valor logo abaixo
+ * (ex.: "ICMS Incluso?(S/N)" / "N", "CUBAGEM(kg/m³)" / 300), como no modelo da Intelipost.
+ */
+export function parametrosDaPlanilha(linhas: Celula[][]): Partial<ParametrosIntelipost> {
+  const p: Partial<ParametrosIntelipost> = {}
+  const abaixo = (r: number, c: number) => {
+    for (let k = r + 1; k < Math.min(linhas.length, r + 4); k++) {
+      const v = linhas[k]?.[c]
+      if (v !== null && v !== undefined && String(v).trim() !== '') return String(v).trim()
+    }
+    return ''
+  }
+  for (let r = 0; r < Math.min(linhas.length, 80); r++) {
+    for (let c = 0; c < 2; c++) {
+      const rot = String(linhas[r]?.[c] ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+      if (!p.icms && /ICMS/.test(rot)) {
+        const v = abaixo(r, c).toUpperCase()
+        if (v === 'S' || v === 'N') p.icms = v
+      } else if (!p.cubagem && /CUBAGEM/.test(rot)) {
+        const v = abaixo(r, c)
+        if (/^\d{2,4}$/.test(v)) p.cubagem = v
+      }
+    }
+  }
+  return p
+}
+
 export function parametrosDoTexto(linhas: string[]): Partial<ParametrosIntelipost> {
   const t = linhas.join(' ').normalize('NFD').replace(/[̀-ͯ]/g, '')
   const p: Partial<ParametrosIntelipost> = {}
